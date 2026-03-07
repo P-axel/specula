@@ -16,5 +16,8 @@ fi
 echo "[Specula] Starting PostgreSQL..."
 docker compose -f postgres/compose.yml up -d
 
-echo "[Specula] PostgreSQL started."
-echo "[Specula] Wazuh deployment will be added next."
+echo "[Specula] Starting Wazuh..."
+docker compose -f wazuh/single-node/docker-compose.yml up -d
+
+echo "[Specula] Master deployment complete."
+echo "[Specula] Wazuh dashboard: https://localhost:8443"
