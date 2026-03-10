@@ -1,0 +1,27 @@
+front:
+
+
+cd specula-console
+npm run dev
+
+
+***************************************************************
+
+back
+API SPECULA : 
+
+source .venv/bin/activate
+set -a
+source .env.local
+set +a
+PYTHONPATH=specula-core uvicorn api.main:app --reload
+
+********************************************************
+
+
+
+Front react : http://localhost:5173/
+
+ENDPOINTS:  http://127.0.0.1:8000/assets
+
+manager washu : https://localhost:8443
