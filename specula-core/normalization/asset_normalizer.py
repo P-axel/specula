@@ -20,6 +20,10 @@ class AssetNormalizer:
         node_name = str(agent.get("node_name", "unknown"))
         version = str(agent.get("version", "unknown"))
 
+        groups = agent.get("group")
+        last_seen = agent.get("lastKeepAlive")
+        registered_at = agent.get("dateAdd")
+
         asset_type = "server"
         lowered_name = name.lower()
         lowered_platform = platform.lower()
@@ -28,7 +32,7 @@ class AssetNormalizer:
             asset_type = "manager"
         elif "windows" in lowered_platform:
             asset_type = "workstation"
-        elif "linux" in lowered_platform or "amzn" in lowered_platform:
+        elif "linux" in lowered_platform or "amzn" in lowered_platform or "debian" in lowered_platform:
             asset_type = "server"
 
         return Asset(
@@ -45,5 +49,8 @@ class AssetNormalizer:
             manager=manager,
             node_name=node_name,
             version=version,
+            groups=groups,
+            last_seen=last_seen,
+            registered_at=registered_at,
             raw_payload=agent,
         )

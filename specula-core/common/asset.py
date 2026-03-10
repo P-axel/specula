@@ -1,5 +1,5 @@
 from dataclasses import asdict, dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 
 @dataclass(slots=True)
@@ -19,6 +19,9 @@ class Asset:
     version: str
     site: Optional[str] = None
     criticality: str = "medium"
+    groups: Optional[List[str]] = None
+    last_seen: Optional[str] = None
+    registered_at: Optional[str] = None
     raw_payload: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
