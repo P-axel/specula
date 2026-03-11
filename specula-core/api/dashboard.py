@@ -133,23 +133,17 @@ def dashboard_overview() -> dict:
     detections = list_detections()
     events = [event.to_dict() for event in wazuh_events_service.list_agent_status_events()]
 
-    active_assets = [
-        asset for asset in assets
-        if str(asset.get("status", "")).lower() == "active"
-    ]
-    inactive_assets = [
-        asset for asset in assets
-        if str(asset.get("status", "")).lower() != "active"
-    ]
+    active_assets = [a for a in assets if str(a.get("status", "")).lower() == "active"]
+    inactive_assets = [a for a in assets if str(a.get("status", "")).lower() != "active"]
 
     open_alerts = [
-        alert for alert in alerts
-        if str(alert.get("status", alert.get("state", ""))).lower() == "open"
+        a for a in alerts
+        if str(a.get("status", a.get("state", ""))).lower() == "open"
     ]
 
     critical_alerts = [
-        alert for alert in alerts
-        if "critical" in str(alert.get("severity", "")).lower()
+        a for a in alerts
+        if "critical" in str(a.get("severity", "")).lower()
     ]
 
     return {
@@ -228,7 +222,7 @@ def dashboard_activity() -> list[dict]:
     detections = list_detections()
     now = datetime.now(timezone.utc)
 
-    buckets: list[str] = []
+    buckets = []
     bucket_map: dict[str, int] = defaultdict(int)
 
     for hours_ago in range(11, -1, -1):

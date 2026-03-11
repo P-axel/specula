@@ -1,6 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getDetections } from "../../../api/detections.api";
+import PageHero from "../../../shared/ui/PageHero";
 import PageSection from "../../../shared/ui/PageSection";
+import MetricCards from "../../../shared/ui/MetricCards";
+import RecentDetections from "../../dashboard/components/RecentDetections";
 
 export default function DetectionsPage() {
   const [detections, setDetections] = useState([]);
@@ -19,34 +22,43 @@ export default function DetectionsPage() {
     loadDetections();
   }, []);
 
+  const cards = useMemo(
+    () => [
+      { label: "Detections", value: detections.length, tone: "info" },
+      {
+        label: "Informational",
+        value: detections.filter((item) =>
+          String(item.severity || "").toLowerCase().includes("info")
+        ).length,
+        tone: "success",
+      },
+      {
+        label: "High Severity",
+        value: detections.filter((item) =>
+          String(item.severity || "").toLowerCase().includes("high")
+        ).length,
+        tone: "danger",
+      },
+    ],
+    [detections]
+  );
+
   return (
-    <div className="page">
-      <PageSection title="Detections">
+    <div className="page dashboard-page">
+      <PageHero
+        eyebrow="Specula Detections"
+        title="Detection Signals"
+        description="Signaux interprétés par Specula à partir des événements et états remontés par les agents."
+        badge={`${detections.length} detections`}
+      />
+
+      <MetricCards items={cards} />
+
+      <PageSection title="All Detections">
         {error ? (
           <p className="error-text">{error}</p>
         ) : (
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Severity</th>
-                  <th>Source</th>
-                  <th>Timestamp</th>
-                </tr>
-              </thead>
-              <tbody>
-                {detections.map((item, index) => (
-                  <tr key={item.id || index}>
-                    <td>{item.name || item.rule_name || "-"}</td>
-                    <td>{item.severity || item.level || "-"}</td>
-                    <td>{item.source || item.agent || "-"}</td>
-                    <td>{item.timestamp || item.created_at || "-"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <RecentDetections detections={detections} />
         )}
       </PageSection>
     </div>

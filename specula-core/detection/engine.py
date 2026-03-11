@@ -1,12 +1,14 @@
 from typing import List
 
 from common.detection import Detection
+from detection.rules.agent_active_rule import AgentActiveRule
 from detection.rules.repeated_high_severity import RepeatedHighSeverityRule
 
 
 class DetectionEngine:
     def __init__(self) -> None:
         self.rules = [
+            AgentActiveRule(),
             RepeatedHighSeverityRule(),
         ]
 

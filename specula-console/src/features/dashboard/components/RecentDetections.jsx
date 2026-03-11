@@ -1,30 +1,43 @@
+function getSeverityClass(severity) {
+  const value = String(severity || "").toLowerCase();
+
+  if (value.includes("critical")) return "critical";
+  if (value.includes("high")) return "high";
+  if (value.includes("medium")) return "medium";
+  if (value.includes("low")) return "low";
+  return "info";
+}
+
 export default function RecentDetections({ detections = [] }) {
   if (!detections.length) {
     return <p className="empty-state">No recent detections.</p>;
   }
 
   return (
-    <div className="table-wrap">
-      <table className="data-table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Severity</th>
-            <th>Source</th>
-            <th>Timestamp</th>
-          </tr>
-        </thead>
-        <tbody>
-          {detections.map((item, index) => (
-            <tr key={item.id || index}>
-              <td>{item.name || item.rule_name || "Unknown detection"}</td>
-              <td>{item.severity || item.level || "-"}</td>
-              <td>{item.source || item.agent || "-"}</td>
-              <td>{item.timestamp || item.created_at || "-"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="detection-list">
+      {detections.map((item, index) => {
+        const severityClass = getSeverityClass(item.severity);
+
+        return (
+          <article key={item.id || index} className="detection-item">
+            <div className={`severity-pill ${severityClass}`}>
+              {item.severity || "info"}
+            </div>
+
+            <div className="detection-body">
+              <h3 className="detection-title">
+                {item.name || item.rule_name || "Unknown detection"}
+              </h3>
+
+              <div className="detection-meta">
+                <span>{item.source || item.agent || "unknown source"}</span>
+                <span>{item.status || "status n/a"}</span>
+                <span>{item.timestamp || item.created_at || "-"}</span>
+              </div>
+            </div>
+          </article>
+        );
+      })}
     </div>
   );
 }
