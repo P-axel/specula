@@ -2,7 +2,7 @@ from typing import List
 
 from common.alert import Alert
 from normalization.alert_normalizer import AlertNormalizer
-from services.events_service import EventsService
+from services.wazuh_events_service import WazuhEventsService
 from specula_logging.logger import get_logger
 
 
@@ -11,7 +11,7 @@ logger = get_logger(__name__)
 
 class AlertsService:
     def __init__(self) -> None:
-        self.events_service = EventsService()
+        self.events_service = WazuhEventsService()
 
     def list_alerts(self) -> List[Alert]:
         logger.info("Génération des alertes depuis les événements")

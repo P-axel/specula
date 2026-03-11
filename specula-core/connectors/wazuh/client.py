@@ -1,3 +1,4 @@
+import time
 from typing import Any, Dict, Optional
 
 import requests
@@ -24,7 +25,9 @@ class WazuhClient:
         self.password = password or settings.wazuh_password
         self.verify_ssl = verify_ssl if verify_ssl is not None else settings.wazuh_verify_tls
         self.timeout = timeout if timeout is not None else settings.wazuh_timeout
+
         self.token: Optional[str] = None
+        self.token_expire_at: float = 0.0
 
         if not self.base_url:
             raise ValueError("WAZUH_BASE_URL manquant")
@@ -61,12 +64,16 @@ class WazuhClient:
             raise RuntimeError("Token Wazuh vide")
 
         self.token = token
+        self.token_expire_at = time.time() + (15 * 60) - 30
         logger.debug("Token Wazuh obtenu")
         return token
 
-    def _headers(self) -> Dict[str, str]:
-        if not self.token:
+    def _ensure_token(self) -> None:
+        if not self.token or time.time() >= self.token_expire_at:
             self.authenticate()
+
+    def _headers(self) -> Dict[str, str]:
+        self._ensure_token()
 
         return {
             "Authorization": f"Bearer {self.token}",

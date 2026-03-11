@@ -18,16 +18,17 @@ class EventNormalizer:
             severity = "medium"
 
         return Event(
-            event_id=f"wazuh-agent-status-{agent_id}",
-            source="wazuh",
-            event_type="agent_status",
-            title=title,
-            severity=severity,
-            asset_id=agent_id,
-            src_ip=agent.get("ip"),
-            occurred_at=last_keepalive,
-            raw_payload=agent,
-        )
+               event_id=f"wazuh-agent-status-{agent_id}",
+               source="wazuh",
+                event_type="status",
+                source_event_type="agent_status",
+                title=title,
+                severity=severity,
+                 asset_id=agent_id,
+                 src_ip=agent.get("ip"),
+                 occurred_at=last_keepalive,
+                 raw_payload=agent,
+)
 
     @staticmethod
     def from_suricata_alert(alert: Dict[str, Any]) -> Event:
@@ -46,7 +47,7 @@ class EventNormalizer:
         return Event(
             event_id=f"suricata-{event_id}",
             source="suricata",
-            event_type="network_alert",
+            source_event_type="network_alert",
             title=signature,
             severity=severity,
             src_ip=alert.get("src_ip"),
