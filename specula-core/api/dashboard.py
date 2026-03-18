@@ -78,7 +78,15 @@ def list_alerts() -> list[dict]:
 
 
 @app.get("/detections")
-def list_detections() -> list[dict]:
+def list_detections(limit: int = 100) -> list[dict]:
+    try:
+        detections = alerts_service.list_business_detections(limit=limit)
+        if detections:
+            return detections
+    except Exception:
+        pass
+
+    # fallback résilient si les alertes indexées ne remontent pas
     events = wazuh_events_service.list_agent_status_events()
 
     detections: list[dict] = []
@@ -97,14 +105,19 @@ def list_detections() -> list[dict]:
         detections.append(
             {
                 "id": event.event_id,
+                "title": event.title,
                 "name": event.title,
+                "description": f"Statut agent Wazuh : {status}",
                 "severity": severity,
                 "source": event.source,
+                "asset": raw_payload.get("name"),
                 "asset_id": event.asset_id,
                 "asset_name": raw_payload.get("name"),
                 "timestamp": event.occurred_at,
                 "category": "agent_status",
                 "status": status,
+                "framework": "N/A",
+                "control_ref": "N/A",
                 "ip_address": raw_payload.get("ip"),
                 "manager": raw_payload.get("manager"),
                 "platform": (raw_payload.get("os") or {}).get("platform"),

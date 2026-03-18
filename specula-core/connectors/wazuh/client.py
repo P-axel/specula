@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional
 
 import requests
 from requests import Response
+from requests.auth import HTTPBasicAuth
 from requests.exceptions import RequestException
 
 from config.settings import settings
@@ -19,12 +20,14 @@ class WazuhClient:
         password: Optional[str] = None,
         verify_ssl: Optional[bool] = None,
         timeout: Optional[int] = None,
+        auth_type: str = "token",  # "token" pour Wazuh server API, "basic" pour Wazuh indexer API
     ) -> None:
         self.base_url = (base_url or settings.wazuh_base_url).rstrip("/")
         self.username = username or settings.wazuh_username
         self.password = password or settings.wazuh_password
         self.verify_ssl = verify_ssl if verify_ssl is not None else settings.wazuh_verify_tls
         self.timeout = timeout if timeout is not None else settings.wazuh_timeout
+        self.auth_type = auth_type
 
         self.token: Optional[str] = None
         self.token_expire_at: float = 0.0
@@ -36,9 +39,20 @@ class WazuhClient:
         if not self.password:
             raise ValueError("WAZUH_PASSWORD manquant")
 
-        logger.info("WazuhClient initialisé pour %s", self.base_url)
+        logger.info(
+            "WazuhClient initialisé pour %s (auth_type=%s)",
+            self.base_url,
+            self.auth_type,
+        )
 
     def authenticate(self) -> str:
+        """
+        Authentification par token pour le Wazuh server API.
+        Ne sert pas pour le Wazuh indexer API en mode basic auth.
+        """
+        if self.auth_type != "token":
+            raise RuntimeError("authenticate() ne doit pas être utilisé en mode basic")
+
         url = f"{self.base_url}/security/user/authenticate"
         params = {"raw": "true"}
 
@@ -69,16 +83,25 @@ class WazuhClient:
         return token
 
     def _ensure_token(self) -> None:
-        if not self.token or time.time() >= self.token_expire_at:
-            self.authenticate()
+        if self.auth_type == "token":
+            if not self.token or time.time() >= self.token_expire_at:
+                self.authenticate()
 
     def _headers(self) -> Dict[str, str]:
-        self._ensure_token()
-
-        return {
-            "Authorization": f"Bearer {self.token}",
+        headers = {
             "Content-Type": "application/json",
         }
+
+        if self.auth_type == "token":
+            self._ensure_token()
+            headers["Authorization"] = f"Bearer {self.token}"
+
+        return headers
+
+    def _auth(self) -> Optional[HTTPBasicAuth]:
+        if self.auth_type == "basic":
+            return HTTPBasicAuth(self.username, self.password)
+        return None
 
     def _build_url(self, endpoint: str) -> str:
         if not endpoint.startswith("/"):
@@ -90,10 +113,17 @@ class WazuhClient:
         method: str,
         endpoint: str,
         params: Optional[Dict[str, Any]] = None,
+        json: Optional[Dict[str, Any]] = None,
     ) -> Response:
         url = self._build_url(endpoint)
 
-        logger.debug("Appel Wazuh %s %s params=%s", method, url, params or {})
+        logger.debug(
+            "Appel Wazuh %s %s params=%s json=%s",
+            method,
+            url,
+            params or {},
+            json or {},
+        )
 
         try:
             response = requests.request(
@@ -101,11 +131,13 @@ class WazuhClient:
                 url=url,
                 headers=self._headers(),
                 params=params or {},
+                json=json,
+                auth=self._auth(),
                 timeout=self.timeout,
                 verify=self.verify_ssl,
             )
 
-            if response.status_code == 401:
+            if response.status_code == 401 and self.auth_type == "token":
                 logger.warning("401 reçu, renouvellement du token Wazuh")
                 self.authenticate()
                 response = requests.request(
@@ -113,6 +145,8 @@ class WazuhClient:
                     url=url,
                     headers=self._headers(),
                     params=params or {},
+                    json=json,
+                    auth=self._auth(),
                     timeout=self.timeout,
                     verify=self.verify_ssl,
                 )
@@ -130,6 +164,22 @@ class WazuhClient:
         params: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         response = self._request("GET", endpoint, params=params)
+
+        try:
+            data = response.json()
+            logger.debug("Réponse JSON Wazuh reçue pour %s", endpoint)
+            return data
+        except ValueError as exc:
+            logger.error("Réponse JSON invalide pour %s", endpoint)
+            raise RuntimeError("Réponse JSON invalide renvoyée par Wazuh") from exc
+
+    def post(
+        self,
+        endpoint: str,
+        json: Optional[Dict[str, Any]] = None,
+        params: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        response = self._request("POST", endpoint, params=params, json=json)
 
         try:
             data = response.json()

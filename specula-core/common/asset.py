@@ -14,14 +14,22 @@ class Asset:
     os_version: str
     architecture: str
     status: str
+
     manager: str
     node_name: str
     version: str
+
     site: Optional[str] = None
     criticality: str = "medium"
+
     groups: Optional[List[str]] = None
+
     last_seen: Optional[str] = None
+    last_seen_relative: Optional[str] = None   
     registered_at: Optional[str] = None
+
+    health_state: Optional[str] = None      
+
     raw_payload: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:

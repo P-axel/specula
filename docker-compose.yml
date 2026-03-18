@@ -1,0 +1,38 @@
+services:
+  specula-backend:
+    build:
+      context: .
+      dockerfile: specula-core/Dockerfile
+    container_name: specula-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./specula-core:/app/specula-core
+      - ./requirements.txt:/app/requirements.txt
+      - ./.env:/app/.env:ro
+      - ./.env.local:/app/.env.local:ro
+    env_file:
+      - .env
+      - .env.local
+    working_dir: /app
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  specula-frontend:
+    build:
+      context: ./specula-console
+      dockerfile: Dockerfile
+    container_name: specula-frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./specula-console:/app
+      - /app/node_modules
+    env_file:
+      - ./specula-console/.env
+    depends_on:
+      - specula-backend
+    command: npm run dev -- --host 0.0.0.0
+    restart: unless-stopped

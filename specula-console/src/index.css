@@ -516,6 +516,7 @@ a {
     grid-template-columns: 1fr;
   }
 }
+
 .stat-card,
 .entity-card,
 .detection-item {
@@ -526,8 +527,9 @@ a {
 .entity-card:hover,
 .detection-item:hover {
   transform: translateY(-2px);
-  box-shadow: 0 18px 30px rgba(0,0,0,0.25);
+  box-shadow: 0 18px 30px rgba(0, 0, 0, 0.25);
 }
+
 .dashboard-grid-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -543,4 +545,60 @@ a {
   .dashboard-grid-2 {
     grid-template-columns: 1fr;
   }
+}
+
+.meta-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.view-counter {
+  margin-left: 0.6rem;
+  font-size: 0.8rem;
+  opacity: 0.7;
+  display: flex;
+  align-items: center;
+}
+
+/* =========================================
+   BUTTONS (Signals / Incidents toggle)
+   ========================================= */
+
+.btn {
+  padding: 7px 16px;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.btn-primary {
+  background: #2b4fa3;
+  border-color: #3d66c4;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.btn-secondary {
+  background: #111a2e;
+  border: 1px solid #2a3c64;
+  color: #b9c9e6;
+}
+
+.btn-secondary:hover {
+  background: #16233d;
+  color: #ffffff;
+  border-color: #3a5da5;
+}
+
+.btn-primary:hover {
+  background: #365fc0;
 }

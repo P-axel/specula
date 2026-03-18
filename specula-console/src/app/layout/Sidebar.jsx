@@ -3,9 +3,9 @@ import { NavLink } from "react-router-dom";
 const navItems = [
   { label: "Dashboard", to: "/" },
   { label: "Assets", to: "/assets" },
-  { label: "Events", to: "/events" },
-  { label: "Alerts", to: "/alerts" },
   { label: "Detections", to: "/detections" },
+  {label: "Réseau", to: "/network"},
+  { label: "Events", to: "/events" },
 ];
 
 export default function Sidebar() {

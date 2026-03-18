@@ -1,12 +1,32 @@
 # Specula
 
-Specula is a security visibility platform designed to supervise infrastructure,
-collect telemetry from multiple security tools and provide a unified SOC view.
+![License](https://img.shields.io/badge/license-MIT-blue)
+![Status](https://img.shields.io/badge/status-active-green)
+![Backend](https://img.shields.io/badge/backend-FastAPI-blue)
+![Frontend](https://img.shields.io/badge/frontend-React-blue)
 
-The project is developed by RootSentinel.
+Specula is a **security visibility platform** designed to supervise infrastructure,  
+collect telemetry from multiple security tools, and provide a **unified SOC view**.
 
-Specula acts as an **intelligence layer** on top of trusted open-source
-security components while keeping them unmodified.
+Developed and maintained by **RootSentinel**.
+
+Specula acts as an **intelligence layer** on top of trusted open-source security components —  
+without modifying or forking them.
+
+---
+
+# Why Specula?
+
+Modern security stacks are **fragmented by design**.
+
+Organizations rely on multiple tools (EDR, SIEM, IDS, logs),  
+but lack a **unified, coherent intelligence layer** to correlate and act on signals.
+
+Specula addresses this gap by:
+
+- unifying telemetry into a **canonical data model**
+- correlating signals across heterogeneous tools
+- transforming raw events into **actionable security insights**
 
 ---
 
@@ -15,10 +35,22 @@ security components while keeping them unmodified.
 Specula aims to provide:
 
 - unified visibility across infrastructure
-- normalized security telemetry
+- normalized and structured security telemetry
 - detection and alert generation
 - automation capabilities for remediation
-- a deployable master / client security platform
+- a deployable **master / client security platform**
+
+---
+
+# Use Cases
+
+Specula is designed for real-world security operations:
+
+- SOC visibility across multiple tools
+- centralized alert correlation
+- infrastructure security monitoring
+- automated incident response
+- MSSP multi-client supervision
 
 ---
 
@@ -27,11 +59,22 @@ Specula aims to provide:
 Specula follows strict engineering principles:
 
 - no fork of upstream tools
-- modular architecture
+- modular and extensible architecture
 - canonical security data model
-- easy deployment
-- extensible connectors
-- product-grade interface
+- simple and reproducible deployment
+- connector-based integrations
+- product-grade interface and UX
+
+---
+
+# Connectors vs Modules
+
+Specula distinguishes two key extension mechanisms:
+
+- **Connectors** → ingest and normalize data from external tools (Wazuh, Suricata, etc.)
+- **Modules** → extend internal capabilities (correlation, scoring, automation, detection)
+
+This separation ensures scalability and clean architecture evolution.
 
 ---
 
@@ -39,21 +82,18 @@ Specula follows strict engineering principles:
 
 Specula is built around four canonical objects:
 
-```
-Asset  → infrastructure element
-Event  → normalized telemetry
-Alert  → interpreted security signal
-Action → automated or recommended response
-```
+Asset  → infrastructure element  
+Event  → normalized telemetry  
+Alert  → interpreted security signal  
+Action → automated or recommended response  
 
-These objects allow Specula to integrate multiple telemetry sources while
-keeping a consistent internal model.
+This model enables consistent processing of heterogeneous data sources  
+while maintaining a unified internal representation.
 
 ---
 
 # Architecture Overview
 
-```
                  +--------------------+
                  |  Specula Console   |
                  |  UI / dashboards   |
@@ -70,16 +110,14 @@ keeping a consistent internal model.
         |     Wazuh       | | Extensions      |
         |     Suricata    | | modules         |
         +-----------------+ +-----------------+
-```
 
-Specula integrates telemetry sources through connectors and converts them
-into normalized objects used by the detection engine.
+Specula integrates telemetry sources through connectors and converts them  
+into normalized objects used by the detection and correlation engine.
 
 ---
 
 # Repository Structure
 
-```
 SPECULA/
 │
 ├── README.md
@@ -141,9 +179,8 @@ SPECULA/
 │   └── test.sh
 │
 └── tests/
-```
 
----
+
 
 # Current Features
 
@@ -154,60 +191,55 @@ Specula currently provides:
 - event normalization
 - alert generation
 - FastAPI backend
-- React console
-- modular architecture ready for additional telemetry sources
+- React-based console
+- modular architecture ready for new telemetry sources
 
 ---
 
-# Quick Start (Development)
+# Quick Start
 
-## Start Wazuh
+Requirements:
+- Docker
+- Docker Compose
 
-```
-cd deploy/master/wazuh/single-node
-docker compose up -d
-```
+Then run:
 
-Access Wazuh:
+git clone <repo>
+cd specula
+chmod +x start-specula.sh
+./start-specula.sh
 
-```
-https://localhost:8443
-```
+This will automatically:
+- start Wazuh stack
+- start Specula backend
+- start Specula frontend
+- register a default agent
+
+Access:
+- Specula Console: http://localhost:5173
+- Specula API: http://127.0.0.1:8000/docs
+- Wazuh Dashboard: https://localhost:8443
+
+# Local Development (Optional)
+
+If you prefer running locally without Docker:
+
+./start
+
+This script will:
+
+- activate backend environment
+- load environment variables
+- start the API
+- start the frontend
 
 ---
 
-## Start Specula API
+## Access
 
-```
-source .venv/bin/activate
-
-set -a
-source .env.local
-set +a
-
-PYTHONPATH=specula-core uvicorn api.main:app --reload
-```
-
-API documentation:
-
-```
-http://127.0.0.1:8000/docs
-```
-
----
-
-## Start Specula Console
-
-```
-cd specula-console
-npm run dev
-```
-
-Console:
-
-```
-http://localhost:5173
-```
+- Frontend: http://localhost:5173  
+- API Docs: http://127.0.0.1:8000/docs  
+- Wazuh: https://localhost:8443  
 
 ---
 
@@ -228,13 +260,22 @@ Planned next steps:
 
 Specula does **not replace security tools**.
 
-Instead it acts as an **intelligence layer** that:
+Instead, it acts as an **intelligence layer** that:
 
 - aggregates telemetry
 - normalizes security signals
-- correlates events
-- generates alerts
+- correlates events across sources
+- generates actionable alerts
 - enables automated responses
+
+---
+
+# Disclaimer
+
+Specula is currently under active development.
+
+It should not be used in production environments without proper validation  
+and security review.
 
 ---
 

@@ -15,32 +15,44 @@ class WazuhAlertsConnector:
         sort: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Récupère les alertes Wazuh.
-        Selon ton endpoint réel, tu ajusteras éventuellement le chemin.
+        Récupère les alertes depuis le Wazuh Indexer via `_search`.
         """
-        params: Dict[str, Any] = {
-            "limit": limit,
-            "offset": offset,
-        }
+        must: List[Dict[str, Any]] = []
 
         if q:
-            params["q"] = q
+            if q.startswith("rule.level>="):
+                try:
+                    level = int(q.split(">=")[1].strip())
+                    must.append({"range": {"rule.level": {"gte": level}}})
+                except ValueError:
+                    must.append({"query_string": {"query": q}})
+            else:
+                must.append({"query_string": {"query": q}})
+
+        sort_clause: List[Any] = [{"@timestamp": {"order": "desc"}}]
+
         if sort:
-            params["sort"] = sort
+            try:
+                field, order = sort.split(":")
+                sort_clause = [{field.strip(): {"order": order.strip()}}]
+            except ValueError:
+                pass
 
-        data = self.client.get("/alerts", params=params)
+        body: Dict[str, Any] = {
+            "from": offset,
+            "size": limit,
+            "sort": sort_clause,
+            "query": {
+                "bool": {
+                    "must": must if must else [{"match_all": {}}]
+                }
+            },
+        }
 
-        if "data" in data and "affected_items" in data["data"]:
-            return data["data"]["affected_items"]
+        data = self.client.post("/wazuh-alerts-*/_search", json=body)
+        hits = data.get("hits", {}).get("hits", [])
 
-        if "affected_items" in data:
-            return data["affected_items"]
-
-        return []
+        return [hit.get("_source", {}) for hit in hits]
 
     def get_recent_high_alerts(self, limit: int = 25) -> List[Dict[str, Any]]:
-        """
-        Exemple de filtre simple : alertes de niveau élevé.
-        Ajuste la requête q selon ton API / backend indexé.
-        """
         return self.list_alerts(limit=limit, q="rule.level>=10")

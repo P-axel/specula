@@ -20,6 +20,15 @@ class AssetsService:
         logger.info("Récupération des assets depuis Wazuh")
         agents = self.connector.list_agents()
         assets = [self.connector.to_asset(agent) for agent in agents]
+
+        assets.sort(
+            key=lambda asset: (
+                str(asset.health_state or ""),
+                str(asset.status or ""),
+                str(asset.name or "").lower(),
+            )
+        )
+
         logger.info("%s asset(s) normalisé(s)", len(assets))
         return assets
 

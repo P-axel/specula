@@ -1,0 +1,12 @@
+.git
+.gitignore
+node_modules
+specula-console/node_modules
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.env.local
+dist
+build

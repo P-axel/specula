@@ -10,11 +10,20 @@ npm run dev
 back
 API SPECULA : 
 
+
+
+
+pkill -f uvicorn
+
 source .venv/bin/activate
 set -a
 source .env.local
 set +a
 PYTHONPATH=specula-core uvicorn api.main:app --reload
+
+cd specula-console 
+npm run dev
+
 
 ********************************************************
 

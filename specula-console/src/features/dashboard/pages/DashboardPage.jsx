@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -9,9 +9,9 @@ import {
   Tooltip,
   PieChart,
   Pie,
-  Cell,
   BarChart,
   Bar,
+  Cell,
 } from "recharts";
 
 import {
@@ -27,6 +27,17 @@ import PageHero from "../../../shared/ui/PageHero";
 import PageSection from "../../../shared/ui/PageSection";
 import MetricCards from "../../../shared/ui/MetricCards";
 import RecentDetections from "../components/RecentDetections";
+import "./DashboardPage.css";
+
+function OverviewCard({ tone = "info", label, value, hint }) {
+  return (
+    <div className={`dashboard-network-card dashboard-network-card--${tone}`}>
+      <div className="dashboard-network-card__label">{label}</div>
+      <div className="dashboard-network-card__value">{value}</div>
+      <div className="dashboard-network-card__hint">{hint}</div>
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   const [overview, setOverview] = useState(null);
@@ -36,12 +47,14 @@ export default function DashboardPage() {
   const [topCategories, setTopCategories] = useState([]);
   const [detections, setDetections] = useState([]);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadDashboard() {
-      try {
-        setError("");
+      setLoading(true);
+      setError("");
 
+      try {
         const [
           overviewData,
           severityData,
@@ -60,45 +73,64 @@ export default function DashboardPage() {
 
         setOverview(overviewData);
         setSeverity(severityData);
-        setActivity(activityData);
-        setTopAssets(topAssetsData);
-        setTopCategories(topCategoriesData);
+        setActivity(Array.isArray(activityData) ? activityData : []);
+        setTopAssets(Array.isArray(topAssetsData) ? topAssetsData : []);
+        setTopCategories(Array.isArray(topCategoriesData) ? topCategoriesData : []);
         setDetections(Array.isArray(detectionsData) ? detectionsData : []);
       } catch (err) {
         setError(err.message || "Failed to load dashboard.");
+        setOverview(null);
+        setSeverity(null);
+        setActivity([]);
+        setTopAssets([]);
+        setTopCategories([]);
+        setDetections([]);
+      } finally {
+        setLoading(false);
       }
     }
 
     loadDashboard();
   }, []);
 
-  const cards = overview
-    ? [
-        { label: "Assets", value: overview.assets_total, tone: "primary" },
-        { label: "Active Agents", value: overview.assets_active, tone: "success" },
-        { label: "Inactive Agents", value: overview.assets_inactive, tone: "warning" },
-        { label: "Open Alerts", value: overview.alerts_open, tone: "danger" },
-        { label: "Detections", value: overview.detections_total, tone: "info" },
-      ]
-    : [];
+  const cards = useMemo(() => {
+    if (!overview) return [];
 
-  const severityData = severity
-    ? [
-        { name: "Critical", value: severity.critical || 0 },
-        { name: "High", value: severity.high || 0 },
-        { name: "Medium", value: severity.medium || 0 },
-        { name: "Low", value: severity.low || 0 },
-        { name: "Info", value: severity.info || 0 },
-      ]
-    : [];
+    return [
+      { label: "Actifs", value: overview.assets_total || 0, tone: "primary" },
+      { label: "Agents actifs", value: overview.assets_active || 0, tone: "success" },
+      { label: "Actifs critiques", value: overview.assets_critical || 0, tone: "danger" },
+      { label: "Alertes ouvertes", value: overview.alerts_open || 0, tone: "warning" },
+      { label: "Signaux", value: overview.detections_total || 0, tone: "info" },
+    ];
+  }, [overview]);
+
+  const severityData = useMemo(() => {
+    if (!severity) return [];
+
+    return [
+      { name: "Critical", value: severity.critical || 0 },
+      { name: "High", value: severity.high || 0 },
+      { name: "Medium", value: severity.medium || 0 },
+      { name: "Low", value: severity.low || 0 },
+      { name: "Info", value: severity.info || 0 },
+    ];
+  }, [severity]);
+
+  const heroBadge = useMemo(() => {
+    if (loading) return "Chargement...";
+    if (!overview) return "Aucune donnée";
+
+    return `${overview.assets_total || 0} actifs · ${overview.alerts_open || 0} alertes ouvertes`;
+  }, [loading, overview]);
 
   return (
     <div className="page dashboard-page">
       <PageHero
         eyebrow="Specula Security Operations"
-        title="SOC Overview"
+        title="Vue SOC"
         description="Vue synthétique, visuelle et exploitable des actifs, signaux et tendances de sécurité."
-        badge={overview ? `${overview.assets_total} monitored assets` : "Loading..."}
+        badge={heroBadge}
       />
 
       {error ? (
@@ -109,8 +141,61 @@ export default function DashboardPage() {
         <>
           <MetricCards items={cards} />
 
+          <PageSection title="Couverture de détection">
+            <div className="dashboard-grid-2">
+              <div>
+                <h3 style={{ marginTop: 0, marginBottom: "1rem" }}>Analyse générale</h3>
+                <div className="dashboard-network-grid">
+                  <OverviewCard
+                    tone="info"
+                    label="Signaux"
+                    value={overview?.detections_total || 0}
+                    hint="Éléments détectés et qualifiés par la plateforme"
+                  />
+                  <OverviewCard
+                    tone="warning"
+                    label="Alertes ouvertes"
+                    value={overview?.alerts_open || 0}
+                    hint="Éléments nécessitant encore une qualification"
+                  />
+                  <OverviewCard
+                    tone="danger"
+                    label="Alertes critiques"
+                    value={overview?.alerts_critical || 0}
+                    hint="Éléments au plus haut niveau de priorité"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <h3 style={{ marginTop: 0, marginBottom: "1rem" }}>Réseau</h3>
+                <div className="dashboard-network-grid">
+                  <OverviewCard
+                    tone="info"
+                    label="Détections réseau"
+                    value={overview?.network_detections_total || 0}
+                    hint="Signaux réseau identifiés et classés"
+                  />
+                  <OverviewCard
+                    tone="warning"
+                    label="Alertes réseau"
+                    value={overview?.network_alerts_total || 0}
+                    hint="Événements réseau exploitables en triage"
+                  />
+                  <OverviewCard
+                    tone="danger"
+                    label="Incidents réseau"
+                    value={overview?.network_incidents_total || 0}
+                    hint="Groupes corrélés et priorisés pour action"
+                  />
+                </div>
+              </div>
+            </div>
+          </PageSection>
+
+        
           <div className="dashboard-grid-2">
-            <PageSection title="Activity Timeline">
+            <PageSection title="Activité">
               <div className="chart-box">
                 <ResponsiveContainer width="100%" height={280}>
                   <LineChart data={activity}>
@@ -118,13 +203,18 @@ export default function DashboardPage() {
                     <XAxis dataKey="time" stroke="#93a8c8" />
                     <YAxis stroke="#93a8c8" />
                     <Tooltip />
-                    <Line type="monotone" dataKey="count" stroke="#7db3ff" strokeWidth={2} />
+                    <Line
+                      type="monotone"
+                      dataKey="count"
+                      stroke="#7db3ff"
+                      strokeWidth={2}
+                    />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
             </PageSection>
 
-            <PageSection title="Severity Distribution">
+            <PageSection title="Répartition des sévérités">
               <div className="chart-box">
                 <ResponsiveContainer width="100%" height={280}>
                   <PieChart>
@@ -148,7 +238,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="dashboard-grid-2">
-            <PageSection title="Top Assets">
+            <PageSection title="Actifs les plus exposés">
               <div className="chart-box">
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={topAssets}>
@@ -162,7 +252,7 @@ export default function DashboardPage() {
               </div>
             </PageSection>
 
-            <PageSection title="Top Categories">
+            <PageSection title="Catégories dominantes">
               <div className="chart-box">
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={topCategories}>
@@ -175,10 +265,14 @@ export default function DashboardPage() {
                 </ResponsiveContainer>
               </div>
             </PageSection>
-          </div>
 
-          <PageSection title="Recent Detections">
-            <RecentDetections detections={detections.slice(0, 6)} />
+          </div>
+           <PageSection title="Derniers signaux">
+            {loading ? (
+              <p>Chargement des signaux...</p>
+            ) : (
+              <RecentDetections detections={detections.slice(0, 6)} />
+            )}
           </PageSection>
         </>
       )}
