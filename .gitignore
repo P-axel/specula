@@ -79,6 +79,6 @@ temp/
 *.swp
 
 
-
+runtime/
 
 deploy/master/suricata/deploy/master/suricata/
