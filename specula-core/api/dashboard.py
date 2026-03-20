@@ -1,130 +1,22 @@
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import APIRouter
 
-from detection.engine import DetectionEngine
-from services.wazuh_events_service import WazuhEventsService
-from services.events_service import EventsService
-from services.alerts_service import AlertsService
-from services.assets_service import AssetsService
-from services.detections_service import DetectionsService
-
-app = FastAPI(
-    title="Specula API",
-    version="0.1.0",
-    description="API minimale du noyau Specula",
+from api.dependencies import (
+    alerts_service,
+    assets_service,
+    network_alerts_service,
+    network_incidents_service,
+    themes_service,
+    translated_detections_service,
+    wazuh_events_service,
 )
+from specula_logging.logger import get_logger
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5174",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+logger = get_logger(__name__)
 
-assets_service = AssetsService()
-wazuh_events_service = WazuhEventsService()
-alerts_service = AlertsService()
-
-detections_service = DetectionsService()
-detection_engine = DetectionEngine()
-
-events_service = EventsService(
-    event_repository=None,
-    detection_engine=detection_engine,
-    detections_service=detections_service,
-)
-
-
-@app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
-
-
-@app.get("/assets")
-def list_assets() -> list[dict]:
-    assets = assets_service.list_assets()
-    return [asset.to_dict() for asset in assets]
-
-
-@app.get("/assets/{asset_id}")
-def get_asset(asset_id: str) -> dict:
-    asset = assets_service.get_asset(asset_id)
-
-    if asset is None:
-        raise HTTPException(status_code=404, detail="Asset not found")
-
-    return asset.to_dict()
-
-
-@app.get("/events")
-def list_events() -> list[dict]:
-    events = wazuh_events_service.list_agent_status_events()
-    return [event.to_dict() for event in events]
-
-
-@app.get("/alerts")
-def list_alerts() -> list[dict]:
-    alerts = alerts_service.list_alerts()
-    return [alert.to_dict() for alert in alerts]
-
-
-@app.get("/detections")
-def list_detections(limit: int = 100) -> list[dict]:
-    try:
-        detections = alerts_service.list_business_detections(limit=limit)
-        if detections:
-            return detections
-    except Exception:
-        pass
-
-    # fallback résilient si les alertes indexées ne remontent pas
-    events = wazuh_events_service.list_agent_status_events()
-
-    detections: list[dict] = []
-
-    for event in events:
-        raw_payload = event.raw_payload or {}
-        status = raw_payload.get("status", "unknown")
-
-        if status == "active":
-            severity = "info"
-        elif status in {"disconnected", "inactive", "never_connected"}:
-            severity = "high"
-        else:
-            severity = event.severity or "low"
-
-        detections.append(
-            {
-                "id": event.event_id,
-                "title": event.title,
-                "name": event.title,
-                "description": f"Statut agent Wazuh : {status}",
-                "severity": severity,
-                "source": event.source,
-                "asset": raw_payload.get("name"),
-                "asset_id": event.asset_id,
-                "asset_name": raw_payload.get("name"),
-                "timestamp": event.occurred_at,
-                "category": "agent_status",
-                "status": status,
-                "framework": "N/A",
-                "control_ref": "N/A",
-                "ip_address": raw_payload.get("ip"),
-                "manager": raw_payload.get("manager"),
-                "platform": (raw_payload.get("os") or {}).get("platform"),
-            }
-        )
-
-    return detections
+router = APIRouter(tags=["dashboard"])
 
 
 def _safe_parse_datetime(value: str | None) -> datetime | None:
@@ -139,41 +31,110 @@ def _safe_parse_datetime(value: str | None) -> datetime | None:
         return None
 
 
-@app.get("/dashboard/overview")
+def _dashboard_detection_dicts() -> list[dict]:
+    try:
+        translated = [
+            detection.to_dict()
+            for detection in translated_detections_service.list_translated_detections()
+        ]
+
+        if translated:
+            return translated
+
+        logger.warning("Aucune détection traduite, fallback vers /detections")
+        return alerts_service.list_business_detections(limit=100)
+
+    except Exception as exc:
+        logger.exception(
+            "Erreur translated detections, fallback vers /detections: %s",
+            exc,
+        )
+        return alerts_service.list_business_detections(limit=100)
+
+
+@router.get("/dashboard/overview")
 def dashboard_overview() -> dict:
     assets = [asset.to_dict() for asset in assets_service.list_assets()]
     alerts = [alert.to_dict() for alert in alerts_service.list_alerts()]
-    detections = list_detections()
+    detections = _dashboard_detection_dicts()
     events = [event.to_dict() for event in wazuh_events_service.list_agent_status_events()]
 
-    active_assets = [a for a in assets if str(a.get("status", "")).lower() == "active"]
-    inactive_assets = [a for a in assets if str(a.get("status", "")).lower() != "active"]
+    network_detections = themes_service.list_network_detections(limit=500)
+    network_alerts = network_alerts_service.list_network_alerts(limit=500)
+    network_incidents = network_incidents_service.list_network_incidents(limit=500)
+
+    active_assets = [
+        asset for asset in assets
+        if str(asset.get("status", "")).lower() == "active"
+    ]
+    inactive_assets = [
+        asset for asset in assets
+        if str(asset.get("status", "")).lower() != "active"
+    ]
 
     open_alerts = [
-        a for a in alerts
-        if str(a.get("status", a.get("state", ""))).lower() == "open"
+        alert for alert in alerts
+        if str(alert.get("status", alert.get("state", ""))).lower() == "open"
     ]
 
     critical_alerts = [
-        a for a in alerts
-        if "critical" in str(a.get("severity", "")).lower()
+        alert for alert in alerts
+        if "critical" in str(alert.get("severity", "")).lower()
+    ]
+
+    healthy_assets = [
+        asset for asset in assets
+        if str(asset.get("health_state", "")).lower() == "healthy"
+    ]
+    warning_assets = [
+        asset for asset in assets
+        if str(asset.get("health_state", "")).lower() == "warning"
+    ]
+    critical_assets = [
+        asset for asset in assets
+        if str(asset.get("health_state", "")).lower() == "critical"
     ]
 
     return {
-        "assets_total": len(assets),
-        "assets_active": len(active_assets),
-        "assets_inactive": len(inactive_assets),
-        "alerts_total": len(alerts),
-        "alerts_open": len(open_alerts),
-        "alerts_critical": len(critical_alerts),
-        "detections_total": len(detections),
-        "events_total": len(events),
+        "assets": {
+            "total": len(assets),
+            "active": len(active_assets),
+            "inactive": len(inactive_assets),
+            "healthy": len(healthy_assets),
+            "warning": len(warning_assets),
+            "critical": len(critical_assets),
+        },
+        "soc": {
+            "events_total": len(events),
+            "detections_total": len(detections),
+            "alerts_total": len(alerts),
+            "alerts_open": len(open_alerts),
+            "alerts_critical": len(critical_alerts),
+        },
+        "network": {
+            "detections_total": len(network_detections),
+            "alerts_total": len(network_alerts),
+            "incidents_total": len(network_incidents),
+        },
     }
 
 
-@app.get("/dashboard/severity-distribution")
+@router.get("/dashboard/network-overview")
+def dashboard_network_overview() -> dict:
+    theme_items = themes_service.list_network_detections(limit=500)
+    alert_items = network_alerts_service.list_network_alerts(limit=500)
+    incident_items = network_incidents_service.list_network_incidents(limit=500)
+
+    return {
+        "detections_total": len(theme_items),
+        "alerts_total": len(alert_items),
+        "incidents_total": len(incident_items),
+    }
+
+
+@router.get("/dashboard/severity-distribution")
 def dashboard_severity_distribution() -> dict:
-    detections = list_detections()
+    detections = _dashboard_detection_dicts()
 
     counts = {
         "critical": 0,
@@ -200,9 +161,9 @@ def dashboard_severity_distribution() -> dict:
     return counts
 
 
-@app.get("/dashboard/top-assets")
+@router.get("/dashboard/top-assets")
 def dashboard_top_assets() -> list[dict]:
-    detections = list_detections()
+    detections = _dashboard_detection_dicts()
     counter: Counter = Counter()
 
     for item in detections:
@@ -215,13 +176,13 @@ def dashboard_top_assets() -> list[dict]:
     ]
 
 
-@app.get("/dashboard/top-categories")
+@router.get("/dashboard/top-categories")
 def dashboard_top_categories() -> list[dict]:
-    detections = list_detections()
+    detections = _dashboard_detection_dicts()
     counter: Counter = Counter()
 
     for item in detections:
-        category = item.get("category") or "uncategorized"
+        category = item.get("type") or item.get("category") or "uncategorized"
         counter[category] += 1
 
     return [
@@ -230,12 +191,144 @@ def dashboard_top_categories() -> list[dict]:
     ]
 
 
-@app.get("/dashboard/activity")
+@router.get("/dashboard/top-platforms")
+def dashboard_top_platforms() -> list[dict]:
+    assets = [asset.to_dict() for asset in assets_service.list_assets()]
+    counter: Counter = Counter()
+
+    for asset in assets:
+        platform = asset.get("platform") or asset.get("os_name") or "unknown"
+        counter[str(platform).lower()] += 1
+
+    return [
+        {"name": name, "count": count}
+        for name, count in counter.most_common(5)
+    ]
+
+
+@router.get("/dashboard/top-groups")
+def dashboard_top_groups() -> list[dict]:
+    assets = [asset.to_dict() for asset in assets_service.list_assets()]
+    counter: Counter = Counter()
+
+    for asset in assets:
+        groups = asset.get("groups") or []
+        if isinstance(groups, str):
+            groups = [groups]
+
+        for group in groups:
+            group_name = str(group).strip()
+            if group_name:
+                counter[group_name] += 1
+
+    return [
+        {"name": name, "count": count}
+        for name, count in counter.most_common(5)
+    ]
+
+
+@router.get("/dashboard/recent-assets")
+def dashboard_recent_assets() -> list[dict]:
+    assets = [asset.to_dict() for asset in assets_service.list_assets()]
+    sortable_assets: list[tuple[datetime, dict]] = []
+
+    for asset in assets:
+        dt = _safe_parse_datetime(asset.get("last_seen"))
+        if dt is None:
+            continue
+        sortable_assets.append((dt, asset))
+
+    sortable_assets.sort(key=lambda item: item[0], reverse=True)
+
+    return [
+        {
+            "asset_id": asset.get("asset_id"),
+            "name": asset.get("name"),
+            "status": asset.get("status"),
+            "platform": asset.get("platform"),
+            "last_seen": asset.get("last_seen"),
+            "last_seen_relative": asset.get("last_seen_relative"),
+            "health_state": asset.get("health_state"),
+        }
+        for _, asset in sortable_assets[:5]
+    ]
+
+
+@router.get("/dashboard/watchlist-assets")
+def dashboard_watchlist_assets() -> list[dict]:
+    assets = [asset.to_dict() for asset in assets_service.list_assets()]
+
+    watchlist = [
+        asset for asset in assets
+        if str(asset.get("status", "")).lower() in {"inactive", "disconnected", "never_connected"}
+        or str(asset.get("health_state", "")).lower() in {"warning", "critical"}
+    ]
+
+    def sort_key(asset: dict) -> tuple[int, datetime]:
+        severity_order = {
+            "critical": 0,
+            "warning": 1,
+            "healthy": 2,
+        }
+        health_state = str(asset.get("health_state", "")).lower()
+        dt = _safe_parse_datetime(asset.get("last_seen")) or datetime.min.replace(
+            tzinfo=timezone.utc
+        )
+        return (severity_order.get(health_state, 3), dt)
+
+    watchlist.sort(key=sort_key)
+
+    return [
+        {
+            "asset_id": asset.get("asset_id"),
+            "name": asset.get("name"),
+            "status": asset.get("status"),
+            "platform": asset.get("platform"),
+            "criticality": asset.get("criticality"),
+            "last_seen": asset.get("last_seen"),
+            "last_seen_relative": asset.get("last_seen_relative"),
+            "health_state": asset.get("health_state"),
+        }
+        for asset in watchlist[:5]
+    ]
+
+
+@router.get("/dashboard/telemetry-health")
+def dashboard_telemetry_health() -> dict:
+    assets = [asset.to_dict() for asset in assets_service.list_assets()]
+
+    healthy = 0
+    warning = 0
+    critical = 0
+    unknown = 0
+
+    for asset in assets:
+        state = str(asset.get("health_state", "")).lower()
+
+        if state == "healthy":
+            healthy += 1
+        elif state == "warning":
+            warning += 1
+        elif state == "critical":
+            critical += 1
+        else:
+            unknown += 1
+
+    return {
+        "healthy": healthy,
+        "warning": warning,
+        "critical": critical,
+        "unknown": unknown,
+        "total": len(assets),
+    }
+
+
+@router.get("/dashboard/activity")
 def dashboard_activity() -> list[dict]:
-    detections = list_detections()
+    detections = _dashboard_detection_dicts()
     now = datetime.now(timezone.utc)
 
-    buckets = []
+    buckets: list[str] = []
     bucket_map: dict[str, int] = defaultdict(int)
 
     for hours_ago in range(11, -1, -1):
@@ -245,7 +338,12 @@ def dashboard_activity() -> list[dict]:
         bucket_map[label] = 0
 
     for item in detections:
-        dt = _safe_parse_datetime(item.get("timestamp"))
+        timestamp = (
+            item.get("created_at")
+            or item.get("timestamp")
+            or item.get("metadata", {}).get("occurred_at")
+        )
+        dt = _safe_parse_datetime(timestamp)
         if dt is None:
             continue
 

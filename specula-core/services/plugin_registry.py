@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 from providers.base_provider import DetectionProvider
 from providers.suricata_provider import SuricataProvider
+from providers.wazuh_provider import WazuhProvider
 
 
 class PluginRegistry:
@@ -34,11 +34,16 @@ class PluginRegistry:
         cls,
         *,
         eve_path: str | Path | None = None,
+        wazuh_alerts_path: str | Path | None = None,
         enable_suricata: bool = True,
+        enable_wazuh: bool = True,
     ) -> "PluginRegistry":
         registry = cls()
 
         if enable_suricata and eve_path:
             registry.register(SuricataProvider(eve_path))
+
+        if enable_wazuh and wazuh_alerts_path:
+            registry.register(WazuhProvider(wazuh_alerts_path))
 
         return registry

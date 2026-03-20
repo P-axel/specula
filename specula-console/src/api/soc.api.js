@@ -1,4 +1,4 @@
-const API_BASE = import.meta?.env?.VITE_SPECULA_API_BASE || "";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
 async function apiGet(path) {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -19,63 +19,89 @@ async function apiGet(path) {
   return response.json();
 }
 
-function mapNetworkIncidentToSoc(item, index = 0) {
-  return {
-    id: item.id || item.incident_id || `network-${index}`,
-    title: item.title || item.signature || item.summary || "Incident réseau",
-    status: item.status || "open",
-    priority: item.priority || item.severity || "medium",
-    risk_score: item.risk_score ?? item.score ?? 0,
-    provider: item.provider || item.engine || item.detector || "suricata",
-    theme: item.theme || "network",
-    category: item.category || item.proto || "network",
-    assets: item.assets || [],
-    created_at: item.created_at || item.timestamp || null,
-    updated_at: item.updated_at || item.last_seen || item.timestamp || null,
-    summary: item.summary || item.message || item.signature || "",
-    raw: item,
-  };
+async function tryGetIncidentsSoc(limit) {
+  return apiGet(`/incidents/soc?limit=${limit}`);
 }
 
-export async function fetchSocIncidents() {
-  try {
-    return await apiGet("/incidents/soc");
-  } catch (error) {
-    const networkData = await apiGet("/incidents/network?limit=20");
-    const networkItems = Array.isArray(networkData?.items) ? networkData.items : [];
-    const items = networkItems.map(mapNetworkIncidentToSoc);
+async function tryGetIncidents(limit) {
+  return apiGet(`/incidents?limit=${limit}`);
+}
 
-    return {
-      count: items.length,
-      providers: [...new Set(items.map((item) => item.provider).filter(Boolean))],
-      items,
-    };
+async function tryGetNetworkIncidents(limit) {
+  return apiGet(`/incidents/network?limit=${limit}`);
+}
+
+function normalizeIncidentResponse(payload) {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (Array.isArray(payload?.items)) {
+    return payload.items;
+  }
+
+  return [];
+}
+
+const USE_FIXTURES = true;
+
+export async function fetchSocIncidents(limit = 50) {
+  if (USE_FIXTURES) {
+    const incidentsData = await tryGetIncidents(limit);
+    return normalizeIncidentResponse(incidentsData);
+  }
+
+  try {
+    const socData = await tryGetIncidentsSoc(limit);
+    return normalizeIncidentResponse(socData);
+  } catch {
+    const incidentsData = await tryGetIncidents(limit);
+    return normalizeIncidentResponse(incidentsData);
   }
 }
-
-export async function fetchSocOverview() {
+export async function fetchSocOverview(limit = 50) {
   try {
-    return await apiGet("/incidents/soc/overview");
+    return await apiGet(`/incidents/soc/overview?limit=${limit}`);
   } catch (error) {
-    const incidents = await fetchSocIncidents();
-    const items = Array.isArray(incidents?.items) ? incidents.items : [];
+    const items = await fetchSocIncidents(limit);
 
     return {
       total_incidents: items.length,
-      open_incidents: items.filter((item) => String(item.status).toLowerCase() === "open").length,
+      open_incidents: items.filter(
+        (item) => String(item.status || "").toLowerCase() === "open"
+      ).length,
       high_priority_incidents: items.filter((item) =>
         ["high", "haute", "critical", "critique", "p1", "p2"].includes(
-          String(item.priority).toLowerCase()
+          String(item.priority || item.severity || "").toLowerCase()
         )
       ).length,
       max_risk_score: items.reduce((max, item) => {
-        const value = Number(item.risk_score || 0);
+        const value = Number(item.risk_score ?? item.score ?? 0);
         return value > max ? value : max;
       }, 0),
-      engines: [...new Set(items.map((item) => item.provider).filter(Boolean))],
-      themes: [...new Set(items.map((item) => item.theme).filter(Boolean))],
-      categories: [...new Set(items.map((item) => item.category).filter(Boolean))],
-      assets: [...new Set(items.flatMap((item) => item.assets || []))],
+      engines: [
+        ...new Set(
+          items
+            .map((item) => item.provider || item.engine || item.detector)
+            .filter(Boolean)
+        ),
+      ],
+      themes: [
+        ...new Set(
+          items.map((item) => item.theme || item.kind || item.type).filter(Boolean)
+        ),
+      ],
+      categories: [
+        ...new Set(items.map((item) => item.category).filter(Boolean)),
+      ],
+      assets: [
+        ...new Set(
+          items.flatMap((item) => {
+            if (Array.isArray(item.assets)) return item.assets;
+            return [item.asset_name || item.hostname || item.host].filter(Boolean);
+          })
+        ),
+      ],
       items: [],
     };
   }

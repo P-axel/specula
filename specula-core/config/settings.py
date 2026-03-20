@@ -4,7 +4,6 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 env_file = BASE_DIR / ".env"
@@ -27,6 +26,7 @@ class Settings:
     app_env: str
     app_debug: bool
     log_level: str
+    use_test_fixtures: bool
 
     # Wazuh Manager API
     wazuh_base_url: str
@@ -49,6 +49,7 @@ def load_settings() -> Settings:
         app_env=os.getenv("SPECULA_ENV", "dev"),
         app_debug=_to_bool(os.getenv("SPECULA_DEBUG", "false")),
         log_level=os.getenv("SPECULA_LOG_LEVEL", "INFO"),
+        use_test_fixtures=_to_bool(os.getenv("USE_TEST_FIXTURES", "false")),
 
         # Manager API
         wazuh_base_url=os.getenv("WAZUH_BASE_URL", "https://localhost:55000"),

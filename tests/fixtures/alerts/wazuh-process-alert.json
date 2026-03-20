@@ -1,0 +1,23 @@
+{
+  "id": "wazuh-proc-001",
+  "engine": "wazuh",
+  "severity": "high",
+  "status": "investigating",
+  "timestamp": "2026-03-20T10:05:00Z",
+  "agent": {
+    "id": "003",
+    "name": "pc-marketing-02"
+  },
+  "rule": {
+    "id": "92010",
+    "level": 10,
+    "description": "Suspicious PowerShell execution detected",
+    "groups": ["sysmon", "process_creation", "powershell"]
+  },
+  "event_type": "process_creation",
+  "category": "system",
+  "process_name": "powershell.exe",
+  "process_path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+  "user_name": "m.leroy",
+  "message": "Suspicious encoded PowerShell command observed"
+}

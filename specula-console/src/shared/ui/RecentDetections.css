@@ -1,0 +1,120 @@
+.recent-detections {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1rem;
+}
+
+.recent-detections__empty {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.recent-detection-card {
+  background: linear-gradient(180deg, rgba(16, 25, 44, 0.95), rgba(13, 21, 38, 0.95));
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 1rem;
+  padding: 1.1rem;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
+  transition: all 0.18s ease;
+}
+
+.recent-detection-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(125, 179, 255, 0.3);
+}
+
+.recent-detection-card__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.recent-detection-card__heading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.recent-detection-card__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+.recent-detection-card__description {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #94a3b8;
+  line-height: 1.45;
+}
+
+.recent-detection-card__severity {
+  flex-shrink: 0;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.recent-detection-card__severity--critical {
+  background: rgba(248, 113, 113, 0.16);
+  color: #f87171;
+}
+
+.recent-detection-card__severity--high {
+  background: rgba(251, 146, 60, 0.16);
+  color: #fb923c;
+}
+
+.recent-detection-card__severity--medium {
+  background: rgba(250, 204, 21, 0.16);
+  color: #facc15;
+}
+
+.recent-detection-card__severity--low {
+  background: rgba(125, 179, 255, 0.16);
+  color: #7db3ff;
+}
+
+.recent-detection-card__severity--info {
+  background: rgba(74, 222, 128, 0.16);
+  color: #4ade80;
+}
+
+.recent-detection-card__meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.recent-detection-card__meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.recent-detection-card__label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.recent-detection-card__meta-item strong {
+  font-size: 0.88rem;
+  color: #e2e8f0;
+  word-break: break-word;
+}
+
+@media (max-width: 768px) {
+  .recent-detection-card__top {
+    flex-direction: column;
+  }
+
+  .recent-detection-card__meta {
+    grid-template-columns: 1fr;
+  }
+}

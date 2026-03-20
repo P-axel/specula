@@ -1,0 +1,61 @@
+{
+  "id": "incident-net-001",
+  "engine": "suricata",
+  "kind": "network",
+  "severity": "high",
+  "status": "investigating",
+  "title": "Suspicion d’exfiltration via DNS et HTTP",
+  "description": "Activité réseau anormale corrélée sur un même poste avec DNS suspect et beacon HTTP.",
+  "asset_name": "pc-marketing-02",
+  "category": "network",
+  "event_type": "network_activity",
+  "risk_score": 91,
+  "first_seen": "2026-03-20T10:18:00Z",
+  "last_seen": "2026-03-20T10:20:00Z",
+  "detections_count": 2,
+  "ip_pairs": [
+    "10.20.4.12:51514 → 185.199.110.153:443",
+    "10.20.4.12:54821 → 8.8.8.8:53"
+  ],
+  "signals": [
+    {
+      "id": "suricata-http-001",
+      "engine": "suricata",
+      "severity": "high",
+      "timestamp": "2026-03-20T10:18:00Z",
+      "src_ip": "10.20.4.12",
+      "src_port": 51514,
+      "dest_ip": "185.199.110.153",
+      "dest_port": 443,
+      "protocol": "tcp",
+      "app_proto": "http",
+      "signature_id": 2100498,
+      "signature": "ET MALWARE Suspicious HTTP Beacon",
+      "http": {
+        "host": "cdn-update-check.example.net",
+        "url": "/api/v1/ping"
+      },
+      "tls": {
+        "sni": "cdn-update-check.example.net",
+        "ja3": "d4c3b2a1908877665544332211ffeeaa"
+      }
+    },
+    {
+      "id": "suricata-dns-001",
+      "engine": "suricata",
+      "severity": "medium",
+      "timestamp": "2026-03-20T10:20:00Z",
+      "src_ip": "10.20.4.12",
+      "src_port": 54821,
+      "dest_ip": "8.8.8.8",
+      "dest_port": 53,
+      "protocol": "udp",
+      "app_proto": "dns",
+      "signature_id": 2027751,
+      "signature": "ET DNS Suspicious Long Query",
+      "dns": {
+        "rrname": "x9a8b7c6d5e4f3a2b1c0.exfil-domain.test"
+      }
+    }
+  ]
+}

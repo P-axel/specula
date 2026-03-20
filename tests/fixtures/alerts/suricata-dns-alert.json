@@ -1,0 +1,20 @@
+{
+  "id": "suricata-dns-001",
+  "engine": "suricata",
+  "severity": "medium",
+  "status": "open",
+  "timestamp": "2026-03-20T10:20:00Z",
+  "src_ip": "10.20.4.12",
+  "src_port": 54821,
+  "dest_ip": "8.8.8.8",
+  "dest_port": 53,
+  "protocol": "udp",
+  "app_proto": "dns",
+  "signature_id": 2027751,
+  "signature": "ET DNS Suspicious Long Query",
+  "category": "network",
+  "dns": {
+    "rrname": "x9a8b7c6d5e4f3a2b1c0.exfil-domain.test"
+  },
+  "message": "Potential DNS tunneling activity observed"
+}

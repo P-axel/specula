@@ -1,0 +1,65 @@
+.metric-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+}
+
+.metric-card {
+  position: relative;
+  border-radius: 1rem;
+  padding: 1rem 1.2rem;
+  background: linear-gradient(180deg, rgba(16, 25, 44, 0.95) 0%, rgba(13, 21, 38, 0.95) 100%);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.2);
+  transition: all 0.18s ease;
+}
+
+.metric-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(125, 179, 255, 0.3);
+}
+
+.metric-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  opacity: 0.95;
+}
+
+/* tones */
+
+.metric-card--primary::before {
+  background: #7db3ff;
+}
+
+.metric-card--success::before {
+  background: #4ade80;
+}
+
+.metric-card--warning::before {
+  background: #facc15;
+}
+
+.metric-card--danger::before {
+  background: #f87171;
+}
+
+.metric-card--info::before {
+  background: #60a5fa;
+}
+
+/* content */
+
+.metric-card__label {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  margin-bottom: 0.35rem;
+  display: block;
+}
+
+.metric-card__value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #e2e8f0;
+}

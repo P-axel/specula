@@ -1,0 +1,1 @@
+export { useSocData } from "../providers/SocDataProvider";

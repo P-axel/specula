@@ -1,22 +1,54 @@
+version: "3.9"
+
 services:
   specula-backend:
     build:
       context: .
       dockerfile: specula-core/Dockerfile
     container_name: specula-backend
+    working_dir: /app
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"
+
+    # Raccourcis utiles
+    labels:
+      - "specula.service=backend"
+      - "specula.api=http://localhost:8000"
+      - "specula.docs=http://localhost:8000/docs"
+      - "specula.redoc=http://localhost:8000/redoc"
+
     volumes:
       - ./specula-core:/app/specula-core
-      - ./requirements.txt:/app/requirements.txt
+      - ./requirements.txt:/app/requirements.txt:ro
       - ./.env:/app/.env:ro
       - ./.env.local:/app/.env.local:ro
+
+      # Suricata logs
+      - ./deploy/master/suricata/logs:/var/log/suricata:ro
+
+      # Wazuh logs 
+      - single-node_wazuh_logs:/var/ossec/logs:ro
+
     env_file:
       - .env
       - .env.local
-    working_dir: /app
-    command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+
+    environment:
+      # API base (utile pour debug / logs)
+      SPECULA_API_BASE_URL: http://localhost:8000
+
+      # Suricata
+      SPECULA_SURICATA_EVE_PATH: /var/log/suricata/eve.json
+
+      # Wazuh
+      SPECULA_WAZUH_ALERTS_PATH: /var/ossec/logs/alerts/alerts.json
+
     restart: unless-stopped
+
+    depends_on:
+      - specula-suricata
+
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -25,14 +57,61 @@ services:
       context: ./specula-console
       dockerfile: Dockerfile
     container_name: specula-frontend
+
     ports:
       - "5173:5173"
+
+    # 🔗 Raccourci console
+    labels:
+      - "specula.service=frontend"
+      - "specula.console=http://localhost:5173"
+
     volumes:
       - ./specula-console:/app
       - /app/node_modules
+
     env_file:
       - ./specula-console/.env
+
+    environment:
+      # Assure la connexion API
+      VITE_API_BASE_URL: http://localhost:8000
+
     depends_on:
       - specula-backend
+
     command: npm run dev -- --host 0.0.0.0
+
     restart: unless-stopped
+
+  specula-suricata:
+    image: jasonish/suricata:latest
+    container_name: specula-suricata
+
+    network_mode: host
+    restart: unless-stopped
+
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+
+    environment:
+      TZ: ${TZ}
+
+    command:
+      - -i
+      - ${SURICATA_INTERFACE}
+      - -c
+      - /etc/suricata/suricata.yaml
+
+    volumes:
+      - ./deploy/master/suricata/single-node/etc:/etc/suricata
+      - ./deploy/master/suricata/rules:/var/lib/suricata/rules
+      - ./deploy/master/suricata/logs:/var/log/suricata
+
+
+# Volume externe Wazuh
+volumes:
+  single-node_wazuh_logs:
+    external: true

@@ -1,0 +1,65 @@
+.page-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+
+  padding: 1.5rem 1.75rem;
+  border-radius: 1.25rem;
+
+  background: linear-gradient(
+    90deg,
+    rgba(13, 21, 38, 1) 0%,
+    rgba(21, 35, 64, 1) 100%
+  );
+
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.page-hero__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.page-hero__eyebrow {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7db3ff;
+  font-weight: 600;
+}
+
+.page-hero__badge {
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+
+  background: rgba(59, 130, 246, 0.15);
+  color: #93c5fd;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+}
+
+.page-hero__title {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #e2e8f0;
+  margin: 0;
+}
+
+.page-hero__description {
+  font-size: 0.95rem;
+  color: #94a3b8;
+  max-width: 700px;
+}
+
+.page-hero__content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.page-hero__eyebrow,
+.page-hero__description {
+  margin: 0;
+}

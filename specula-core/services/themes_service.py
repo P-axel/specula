@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -16,9 +17,10 @@ class ThemesService:
     """
 
     def __init__(self) -> None:
-        self.suricata_service = SuricataService(
-            Path("deploy/master/suricata/logs/eve.json")
+        eve_path = Path(
+            os.getenv("SPECULA_SURICATA_EVE_PATH", "/var/log/suricata/eve.json")
         )
+        self.suricata_service = SuricataService(eve_path)
 
     def list_network_detections(self, limit: int = 50) -> list[dict[str, Any]]:
         """

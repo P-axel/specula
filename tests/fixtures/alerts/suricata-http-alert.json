@@ -1,0 +1,25 @@
+{
+  "id": "suricata-http-001",
+  "engine": "suricata",
+  "severity": "high",
+  "status": "open",
+  "timestamp": "2026-03-20T10:18:00Z",
+  "src_ip": "10.20.4.12",
+  "src_port": 51514,
+  "dest_ip": "185.199.110.153",
+  "dest_port": 443,
+  "protocol": "tcp",
+  "app_proto": "http",
+  "signature_id": 2100498,
+  "signature": "ET MALWARE Suspicious HTTP Beacon",
+  "category": "network",
+  "http": {
+    "host": "cdn-update-check.example.net",
+    "url": "/api/v1/ping"
+  },
+  "tls": {
+    "sni": "cdn-update-check.example.net",
+    "ja3": "d4c3b2a1908877665544332211ffeeaa"
+  },
+  "message": "Outbound HTTP beaconing pattern detected"
+}

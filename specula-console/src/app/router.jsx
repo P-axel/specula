@@ -1,17 +1,19 @@
 import { createBrowserRouter } from "react-router-dom";
 import AppShell from "./layout/AppShell";
+import { SocDataProvider } from "../shared/providers/SocDataProvider";
 
 import DashboardPage from "../features/dashboard/pages/DashboardPage";
 import AssetsPage from "../features/assets/pages/AssetsPage";
-import EventsPage from "../features/events/pages/EventsPage";
-import DetectionsPage from "../features/detections/pages/DetectionsPage";
-import NetworkPage from "../features/network/pages/NetworkPage";
-import SocIncidentsPage from "../features/soc/pages/SocIncidentsPage";
+import Incidents from "../features/incidents/pages/Incidents";
 
 export const router = createBrowserRouter([
   {
     path: "/",
-    element: <AppShell />,
+    element: (
+      <SocDataProvider>
+        <AppShell />
+      </SocDataProvider>
+    ),
     children: [
       {
         index: true,
@@ -22,21 +24,8 @@ export const router = createBrowserRouter([
         element: <AssetsPage />,
       },
       {
-        path: "events",
-        element: <EventsPage />,
-      },
-  
-      {
-        path: "detections",
-        element: <DetectionsPage />,
-      },
-      {
-        path: "network",
-        element: <NetworkPage />,
-      },
-      {
-        path: "incidents/soc",
-        element: <SocIncidentsPage />,
+        path: "incidents",
+        element: <Incidents />,
       },
     ],
   },
