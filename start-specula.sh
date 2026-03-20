@@ -5,15 +5,25 @@ PROJECT_NAME="Specula"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WAZUH_DIR="${ROOT_DIR}/deploy/master/wazuh/single-node"
+WAZUH_CONFIG_DIR="${WAZUH_DIR}/config"
+WAZUH_CERT_SRC_DIR="${WAZUH_CONFIG_DIR}/wazuh_indexer_ssl_certs"
+WAZUH_RUNTIME_DIR="${ROOT_DIR}/runtime/wazuh/single-node"
+WAZUH_CERT_DST_DIR="${WAZUH_RUNTIME_DIR}/certs"
 
 FRONT_URL="http://localhost:5173"
 API_URL="http://127.0.0.1:8000/docs"
 WAZUH_URL="https://localhost:8443"
 
-CERT_DIR="${WAZUH_DIR}/config/wazuh_indexer_ssl_certs"
-ROOT_CA="${CERT_DIR}/root-ca.pem"
 CERTS_COMPOSE_FILE="${WAZUH_DIR}/generate-indexer-certs.yml"
 CERTS_SERVICE="generator"
+
+have_runtime_certs() {
+  [ -f "${WAZUH_CERT_DST_DIR}/root-ca.pem" ] &&
+  [ -f "${WAZUH_CERT_DST_DIR}/wazuh.indexer.pem" ] &&
+  [ -f "${WAZUH_CERT_DST_DIR}/wazuh.indexer-key.pem" ] &&
+  [ -f "${WAZUH_CERT_DST_DIR}/admin.pem" ] &&
+  [ -f "${WAZUH_CERT_DST_DIR}/admin-key.pem" ]
+}
 
 echo "========================================"
 echo " Starting ${PROJECT_NAME} deployment"
@@ -31,32 +41,37 @@ if ! docker compose version >/dev/null 2>&1; then
 fi
 
 if [ ! -d "$WAZUH_DIR" ]; then
-  echo "Error: Wazuh directory not found at:"
+  echo "Error: Wazuh directory not found:"
   echo "  $WAZUH_DIR"
   exit 1
 fi
 
+mkdir -p "$WAZUH_CERT_DST_DIR"
+
 echo "[0/5] Checking Wazuh certificates..."
 
-if [ ! -f "$ROOT_CA" ]; then
-  echo "Wazuh certificates not found."
+if ! have_runtime_certs; then
+  echo "Wazuh certificates not found in runtime."
   echo "Generating certificates..."
-
-  if [ ! -f "$CERTS_COMPOSE_FILE" ]; then
-    echo "Error: Certificate generation file not found:"
-    echo "  $CERTS_COMPOSE_FILE"
-    exit 1
-  fi
 
   (
     cd "$WAZUH_DIR"
     docker compose -f "$(basename "$CERTS_COMPOSE_FILE")" run --rm "$CERTS_SERVICE"
   )
 
-  if [ ! -f "$ROOT_CA" ]; then
-    echo "Error: Certificate generation completed but root-ca.pem was not created."
+  if [ ! -d "$WAZUH_CERT_SRC_DIR" ]; then
+    echo "Error: generated certificate source directory not found:"
+    echo "  $WAZUH_CERT_SRC_DIR"
     exit 1
   fi
+
+  cp -f "${WAZUH_CERT_SRC_DIR}/root-ca.pem" "${WAZUH_CERT_DST_DIR}/root-ca.pem"
+  cp -f "${WAZUH_CERT_SRC_DIR}/wazuh.indexer.pem" "${WAZUH_CERT_DST_DIR}/wazuh.indexer.pem"
+  cp -f "${WAZUH_CERT_SRC_DIR}/wazuh.indexer-key.pem" "${WAZUH_CERT_DST_DIR}/wazuh.indexer-key.pem"
+  cp -f "${WAZUH_CERT_SRC_DIR}/admin.pem" "${WAZUH_CERT_DST_DIR}/admin.pem"
+  cp -f "${WAZUH_CERT_SRC_DIR}/admin-key.pem" "${WAZUH_CERT_DST_DIR}/admin-key.pem"
+
+  chmod 600 "${WAZUH_CERT_DST_DIR}"/* || true
 else
   echo "Wazuh certificates already present."
 fi
@@ -65,14 +80,14 @@ echo ""
 echo "[1/5] Starting Wazuh stack..."
 (
   cd "$WAZUH_DIR"
-  docker compose up -d
+  docker compose up -d --remove-orphans
 )
 
 echo ""
 echo "[2/5] Building and starting Specula containers..."
 (
   cd "$ROOT_DIR"
-  docker compose up --build -d
+  docker compose up --build -d --remove-orphans
 )
 
 echo ""
@@ -93,7 +108,6 @@ until check_front && check_api; do
   if [ "$attempt" -ge "$max_attempts" ]; then
     echo ""
     echo "Deployment started, but readiness check timed out."
-    echo ""
     echo "Useful commands:"
     echo "  docker compose logs -f"
     echo "  (cd $WAZUH_DIR && docker compose logs -f)"
@@ -107,17 +121,7 @@ done
 echo ""
 echo "[4/5] Services are ready."
 echo ""
-echo "========================================"
-echo " ${PROJECT_NAME} is up"
-echo "========================================"
-echo ""
 echo "Specula Console : ${FRONT_URL}"
 echo "Specula API Docs: ${API_URL}"
 echo "Wazuh Dashboard : ${WAZUH_URL}"
-echo ""
-echo "Useful commands:"
-echo "  docker compose logs -f"
-echo "  docker compose down"
-echo "  (cd $WAZUH_DIR && docker compose logs -f)"
-echo "  (cd $WAZUH_DIR && docker compose down)"
 echo ""
