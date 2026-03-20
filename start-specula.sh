@@ -10,12 +10,16 @@ FRONT_URL="http://localhost:5173"
 API_URL="http://127.0.0.1:8000/docs"
 WAZUH_URL="https://localhost:8443"
 
+CERT_DIR="${WAZUH_DIR}/config/wazuh_indexer_ssl_certs"
+ROOT_CA="${CERT_DIR}/root-ca.pem"
+CERTS_COMPOSE_FILE="${WAZUH_DIR}/generate-indexer-certs.yml"
+CERTS_SERVICE="generator"
+
 echo "========================================"
 echo " Starting ${PROJECT_NAME} deployment"
 echo "========================================"
 echo ""
 
-# Check Docker
 if ! command -v docker >/dev/null 2>&1; then
   echo "Error: Docker is not installed."
   exit 1
@@ -26,39 +30,55 @@ if ! docker compose version >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "[0/4] Checking Wazuh source..."
-
-if [ -f "${ROOT_DIR}/.gitmodules" ] && git config --file "${ROOT_DIR}/.gitmodules" --get-regexp '^submodule\..*\.path$' | grep -q 'deploy/master/wazuh$'; then
-  echo "Wazuh submodule detected, initializing..."
-  git submodule update --init --recursive
-else
-  echo "No Wazuh submodule declared, skipping submodule initialization."
-fi
-
-# Check Wazuh dir
 if [ ! -d "$WAZUH_DIR" ]; then
   echo "Error: Wazuh directory not found at:"
   echo "  $WAZUH_DIR"
   exit 1
 fi
 
-echo "[1/4] Starting Wazuh stack..."
+echo "[0/5] Checking Wazuh certificates..."
+
+if [ ! -f "$ROOT_CA" ]; then
+  echo "Wazuh certificates not found."
+  echo "Generating certificates..."
+
+  if [ ! -f "$CERTS_COMPOSE_FILE" ]; then
+    echo "Error: Certificate generation file not found:"
+    echo "  $CERTS_COMPOSE_FILE"
+    exit 1
+  fi
+
+  (
+    cd "$WAZUH_DIR"
+    docker compose -f "$(basename "$CERTS_COMPOSE_FILE")" run --rm "$CERTS_SERVICE"
+  )
+
+  if [ ! -f "$ROOT_CA" ]; then
+    echo "Error: Certificate generation completed but root-ca.pem was not created."
+    exit 1
+  fi
+else
+  echo "Wazuh certificates already present."
+fi
+
+echo ""
+echo "[1/5] Starting Wazuh stack..."
 (
   cd "$WAZUH_DIR"
   docker compose up -d
 )
 
 echo ""
-echo "[2/4] Building and starting Specula containers..."
+echo "[2/5] Building and starting Specula containers..."
 (
   cd "$ROOT_DIR"
   docker compose up --build -d
 )
 
 echo ""
-echo "[3/4] Waiting for services to become ready..."
+echo "[3/5] Waiting for services to become ready..."
 
-max_attempts=60
+max_attempts=90
 attempt=1
 
 check_front() {
@@ -85,7 +105,7 @@ until check_front && check_api; do
 done
 
 echo ""
-echo "[4/4] Services are ready."
+echo "[4/5] Services are ready."
 echo ""
 echo "========================================"
 echo " ${PROJECT_NAME} is up"
