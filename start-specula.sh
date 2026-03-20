@@ -26,9 +26,14 @@ if ! docker compose version >/dev/null 2>&1; then
   exit 1
 fi
 
-# 🔥 IMPORTANT: init submodules
-echo "[0/4] Initializing submodules..."
-git submodule update --init --recursive
+echo "[0/4] Checking Wazuh source..."
+
+if [ -f "${ROOT_DIR}/.gitmodules" ] && git config --file "${ROOT_DIR}/.gitmodules" --get-regexp '^submodule\..*\.path$' | grep -q 'deploy/master/wazuh$'; then
+  echo "Wazuh submodule detected, initializing..."
+  git submodule update --init --recursive
+else
+  echo "No Wazuh submodule declared, skipping submodule initialization."
+fi
 
 # Check Wazuh dir
 if [ ! -d "$WAZUH_DIR" ]; then
