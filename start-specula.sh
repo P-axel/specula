@@ -15,6 +15,7 @@ echo " Starting ${PROJECT_NAME} deployment"
 echo "========================================"
 echo ""
 
+# Check Docker
 if ! command -v docker >/dev/null 2>&1; then
   echo "Error: Docker is not installed."
   exit 1
@@ -25,6 +26,11 @@ if ! docker compose version >/dev/null 2>&1; then
   exit 1
 fi
 
+# 🔥 IMPORTANT: init submodules
+echo "[0/4] Initializing submodules..."
+git submodule update --init --recursive
+
+# Check Wazuh dir
 if [ ! -d "$WAZUH_DIR" ]; then
   echo "Error: Wazuh directory not found at:"
   echo "  $WAZUH_DIR"
@@ -65,7 +71,7 @@ until check_front && check_api; do
     echo ""
     echo "Useful commands:"
     echo "  docker compose logs -f"
-    echo "  (cd deploy/master/wazuh/single-node && docker compose logs -f)"
+    echo "  (cd $WAZUH_DIR && docker compose logs -f)"
     exit 1
   fi
 
@@ -87,6 +93,6 @@ echo ""
 echo "Useful commands:"
 echo "  docker compose logs -f"
 echo "  docker compose down"
-echo "  (cd deploy/master/wazuh/single-node && docker compose logs -f)"
-echo "  (cd deploy/master/wazuh/single-node && docker compose down)"
+echo "  (cd $WAZUH_DIR && docker compose logs -f)"
+echo "  (cd $WAZUH_DIR && docker compose down)"
 echo ""
