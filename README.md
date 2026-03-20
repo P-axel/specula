@@ -21,7 +21,7 @@ Specula est une plateforme SOC open-source permettant de :
 ### Lancer Specula
 
 ```bash
-git@github.com:P-axel/specula.git
+git clone git@github.com:P-axel/specula.git
 cd specula
 chmod +x start-specula.sh
 ./start-specula.sh
