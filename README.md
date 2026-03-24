@@ -42,6 +42,10 @@ Specula simplifie cette approche :
 ```bash
 git clone git@github.com:P-axel/specula.git
 cd specula
+cp .env.example .env
+cp .env.example .env.local
+printf 'VITE_API_BASE_URL=http://localhost:8000\n' > specula-console/.env
+# edit .env and set SURICATA_INTERFACE to your real network interface
 chmod +x start-specula.sh
 ./start-specula.sh
 ```
