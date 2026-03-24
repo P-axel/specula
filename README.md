@@ -5,10 +5,11 @@ Specula est une plateforme SOC open-source permettant de détecter et analyser d
 👉 Basé sur Wazuh + Suricata, avec une interface moderne prête à l’emploi.
 
 ---
+<img width="1892" height="946" alt="dash" src="https://github.com/user-attachments/assets/1985bb12-3f76-4fba-a8b6-b51a5c26f040" />
+<img width="1920" height="1080" alt="Copie d&#39;écran_20260324_141457" src="https://github.com/user-attachments/assets/a7d007d2-b9e3-4ccc-983d-6f3b459d67b5" />
+<img width="1915" height="421" alt="Copie d&#39;écran_20260324_141547" src="https://github.com/user-attachments/assets/7ab61af2-5d64-4393-b978-417a3cb44ae2" />
 
-![alt text](dash-1.png)
-![alt text](smpecula.png)
-![alt text](<Copie d'écran_20260324_141547.png>)
+
 ---
 
 ## 🚀 Pourquoi Specula ?
