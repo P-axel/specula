@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   specula-backend:
     build:
@@ -11,7 +9,6 @@ services:
     ports:
       - "8000:8000"
 
-    # Raccourcis utiles
     labels:
       - "specula.service=backend"
       - "specula.api=http://localhost:8000"
@@ -23,11 +20,7 @@ services:
       - ./requirements.txt:/app/requirements.txt:ro
       - ./.env:/app/.env:ro
       - ./.env.local:/app/.env.local:ro
-
-      # Suricata logs
       - ./deploy/master/suricata/logs:/var/log/suricata:ro
-
-      # Wazuh logs 
       - single-node_wazuh_logs:/var/ossec/logs:ro
 
     env_file:
@@ -35,13 +28,8 @@ services:
       - .env.local
 
     environment:
-      # API base (utile pour debug / logs)
       SPECULA_API_BASE_URL: http://localhost:8000
-
-      # Suricata
       SPECULA_SURICATA_EVE_PATH: /var/log/suricata/eve.json
-
-      # Wazuh
       SPECULA_WAZUH_ALERTS_PATH: /var/ossec/logs/alerts/alerts.json
 
     restart: unless-stopped
@@ -52,6 +40,9 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
+    networks:
+      - specula-net
+
   specula-frontend:
     build:
       context: ./specula-console
@@ -61,7 +52,6 @@ services:
     ports:
       - "5173:5173"
 
-    # 🔗 Raccourci console
     labels:
       - "specula.service=frontend"
       - "specula.console=http://localhost:5173"
@@ -74,7 +64,6 @@ services:
       - ./specula-console/.env
 
     environment:
-      # Assure la connexion API
       VITE_API_BASE_URL: http://localhost:8000
 
     depends_on:
@@ -83,6 +72,9 @@ services:
     command: npm run dev -- --host 0.0.0.0
 
     restart: unless-stopped
+
+    networks:
+      - specula-net
 
   specula-suricata:
     image: jasonish/suricata:latest
@@ -110,8 +102,10 @@ services:
       - ./deploy/master/suricata/rules:/var/lib/suricata/rules
       - ./deploy/master/suricata/logs:/var/log/suricata
 
-
-# Volume externe Wazuh
 volumes:
   single-node_wazuh_logs:
+    external: true
+
+networks:
+  specula-net:
     external: true
