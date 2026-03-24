@@ -101,6 +101,9 @@ fi
 
 log "[0/5] Checking Wazuh certificates..."
 
+if [[ -z "${SURICATA_INTERFACE:-}" ]]; then
+  fail "SURICATA_INTERFACE is not set. Update .env before starting Specula."
+fi
 if ! have_runtime_certs; then
   log "Wazuh certificates not found in runtime."
   log "Generating certificates..."
