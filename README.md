@@ -10,7 +10,8 @@ Specula est une plateforme SOC open-source permettant de détecter et analyser d
 <img width="1915" height="421" alt="Copie d&#39;écran_20260324_141547" src="https://github.com/user-attachments/assets/7ab61af2-5d64-4393-b978-417a3cb44ae2" />
 
 
----
+
+
 
 ## 🚀 Pourquoi Specula ?
 
