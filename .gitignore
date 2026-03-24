@@ -85,3 +85,8 @@ deploy/master/suricata/deploy/master/suricata/
 deploy/master/suricata/
 deploy/master/wazuh/
 *.log
+
+# runtime / data
+deploy/master/suricata/single-node/etc/
+deploy/master/suricata/single-node/etc/*.config
+deploy/master/suricata/single-node/etc/*.yaml
