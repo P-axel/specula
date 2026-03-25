@@ -4,6 +4,8 @@ services:
     image: wazuh/wazuh-manager:4.14.3
     hostname: wazuh.manager
     restart: always
+    env_file:
+      - ../../../../.env
     ulimits:
       memlock:
         soft: -1
@@ -18,14 +20,14 @@ services:
       - "55000:55000"
     environment:
       - INDEXER_URL=https://wazuh.indexer:9200
-      - INDEXER_USERNAME=admin
-      - INDEXER_PASSWORD=SecretPassword
+      - INDEXER_USERNAME=${WAZUH_INDEXER_USERNAME}
+      - INDEXER_PASSWORD=${WAZUH_INDEXER_PASSWORD}
       - FILEBEAT_SSL_VERIFICATION_MODE=full
       - SSL_CERTIFICATE_AUTHORITIES=/etc/ssl/root-ca.pem
       - SSL_CERTIFICATE=/etc/ssl/filebeat.pem
       - SSL_KEY=/etc/ssl/filebeat.key
-      - API_USERNAME=wazuh-wui
-      - API_PASSWORD=MyS3cr37P450r.*-
+      - API_USERNAME=${WAZUH_USERNAME}
+      - API_PASSWORD=${WAZUH_PASSWORD}
       - WAZUH_AUTHD_ENABLED=true
     volumes:
       - wazuh_api_configuration:/var/ossec/api/configuration
@@ -50,10 +52,12 @@ services:
     image: wazuh/wazuh-indexer:4.14.3
     hostname: wazuh.indexer
     restart: always
+    env_file:
+      - ../../../../.env
     ports:
       - "9200:9200"
     environment:
-      - "OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g"
+      - OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g
     ulimits:
       memlock:
         soft: -1
@@ -77,16 +81,18 @@ services:
     image: wazuh/wazuh-dashboard:4.14.3
     hostname: wazuh.dashboard
     restart: always
+    env_file:
+      - ../../../../.env
     ports:
       - "8443:5601"
     environment:
-      - INDEXER_USERNAME=admin
-      - INDEXER_PASSWORD=SecretPassword
+      - INDEXER_USERNAME=${WAZUH_INDEXER_USERNAME}
+      - INDEXER_PASSWORD=${WAZUH_INDEXER_PASSWORD}
       - WAZUH_API_URL=https://wazuh.manager
       - DASHBOARD_USERNAME=kibanaserver
       - DASHBOARD_PASSWORD=kibanaserver
-      - API_USERNAME=wazuh-wui
-      - API_PASSWORD=MyS3cr37P450r.*-
+      - API_USERNAME=${WAZUH_USERNAME}
+      - API_PASSWORD=${WAZUH_PASSWORD}
     volumes:
       - ../../../../runtime/wazuh/single-node/certs/wazuh.dashboard.pem:/usr/share/wazuh-dashboard/certs/wazuh-dashboard.pem
       - ../../../../runtime/wazuh/single-node/certs/wazuh.dashboard-key.pem:/usr/share/wazuh-dashboard/certs/wazuh-dashboard-key.pem
@@ -109,6 +115,8 @@ services:
     hostname: specula.agent
     container_name: specula-agent
     restart: always
+    env_file:
+      - ../../../../.env
     environment:
       - WAZUH_MANAGER_SERVER=wazuh.manager
     volumes:
