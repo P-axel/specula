@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 
-import { fetchSocIncidents } from "../../api/soc.api";
+import { getSocIncidents } from "../../api/soc.api";
 import { getAlerts } from "../../api/alerts.api";
 import { getAssets } from "../../api/assets.api";
 import {
@@ -144,7 +144,7 @@ export function SocDataProvider({ children }) {
 
   const hasLoadedRef = useRef(!!initialCache);
   const isFetchingRef = useRef(false);
-
+  
   const applyAllData = useCallback((nextData) => {
     const payload = {
       ...nextData,
@@ -195,7 +195,7 @@ export function SocDataProvider({ children }) {
           topCategoriesResponse,
           detectionsResponse,
         ] = await Promise.all([
-          fetchSocIncidents(100),
+          getSocIncidents(100),
           getAlerts(),
           getAssets(),
           getDashboardOverview(),
@@ -205,7 +205,15 @@ export function SocDataProvider({ children }) {
           getTopCategories(),
           getDetections(),
         ]);
-
+    console.log("socIncidentsResponse", socIncidentsResponse);
+console.log("alertsResponse", alertsResponse);
+console.log("detectionsResponse", detectionsResponse);
+console.log(
+  "incidents extracted",
+  Array.isArray(socIncidentsResponse)
+    ? socIncidentsResponse
+    : extractCollection(socIncidentsResponse)
+);
     applyAllData({
           incidentsRaw: Array.isArray(socIncidentsResponse)
             ? socIncidentsResponse
