@@ -24,6 +24,21 @@ import "./DashboardPage.css";
 
 const SEVERITY_COLORS = ["#ff6f6f", "#ffb07b", "#ffd47c", "#9fd0ff", "#89e6cb"];
 
+function getPriorityLabel(value) {
+  const normalized = String(value || "info").toLowerCase();
+
+  if (normalized.includes("critical")) return "critical";
+  if (normalized.includes("high")) return "high";
+  if (normalized.includes("medium")) return "medium";
+  if (normalized.includes("low")) return "low";
+  return "info";
+}
+
+function isOpenIncidentStatus(value) {
+  const status = String(value || "open").toLowerCase();
+  return status === "open" || status === "investigating";
+}
+
 function OverviewCard({ tone = "info", label, value, hint }) {
   return (
     <article className={`dashboard-overview-card dashboard-overview-card--${tone}`}>
@@ -98,51 +113,62 @@ export default function DashboardPage() {
   } = useSocData();
 
   const localStats = useMemo(() => {
-    const criticalIncidents = incidentsRaw.filter((incident) =>
-      String(incident?.severity || incident?.priority || "").toLowerCase().includes("critical")
+    const normalizedIncidents = incidentsRaw.map((incident) => ({
+      severity: getPriorityLabel(incident?.severity || incident?.priority),
+      status: String(incident?.status || "open").toLowerCase(),
+    }));
+
+    const incidentsCount = normalizedIncidents.length;
+    const alertsCount = alertsRaw.length;
+
+    const criticalIncidents = normalizedIncidents.filter(
+      (incident) => incident.severity === "critical"
     ).length;
 
-    const highIncidents = incidentsRaw.filter((incident) => {
-      const severityLabel = String(
-        incident?.severity || incident?.priority || ""
-      ).toLowerCase();
+    const highIncidents = normalizedIncidents.filter(
+      (incident) => incident.severity === "high" || incident.severity === "critical"
+    ).length;
 
-      return severityLabel.includes("high") || severityLabel.includes("critical");
-    }).length;
+    const openIncidents = normalizedIncidents.filter((incident) =>
+      isOpenIncidentStatus(incident.status)
+    ).length;
 
-    const openIncidents = incidentsRaw.filter((incident) => {
-      const status = String(incident?.status || "open").toLowerCase();
-      return status === "open" || status === "investigating";
-    }).length;
+    const assetsTotal = overview?.assets?.total || 0;
+    const assetsActive = overview?.assets?.active || 0;
 
-    const activeCoverage = overview?.assets?.total
-      ? Math.round(((overview?.assets?.active || 0) / overview.assets.total) * 100)
+    const activeCoverage = assetsTotal
+      ? Math.round((assetsActive / assetsTotal) * 100)
       : 0;
 
     const socDetections = overview?.soc?.detections_total || 0;
+    const socEvents = overview?.soc?.events_total || 0;
+
     const networkDetections = overview?.network?.detections_total || 0;
-    const networkIncidents = overview?.network?.incidents_total || 0;
+    const networkSignals = overview?.network?.alerts_total || 0;
+    const networkCorrelations = overview?.network?.incidents_total || 0;
 
     const incidentConversionRate = socDetections
-      ? Math.round((incidentsRaw.length / socDetections) * 100)
+      ? Math.round((incidentsCount / socDetections) * 100)
       : 0;
 
-    const networkPressure = networkDetections
-      ? Math.round((networkIncidents / networkDetections) * 100)
+    const networkCorrelationRate = networkDetections
+      ? Math.round((networkCorrelations / networkDetections) * 100)
       : 0;
 
     return {
-      incidentsCount: incidentsRaw.length,
-      alertsCount: alertsRaw.length,
+      incidentsCount,
+      alertsCount,
       criticalIncidents,
       highIncidents,
       openIncidents,
       activeCoverage,
       socDetections,
+      socEvents,
       networkDetections,
-      networkIncidents,
+      networkSignals,
+      networkCorrelations,
       incidentConversionRate,
-      networkPressure,
+      networkCorrelationRate,
     };
   }, [incidentsRaw, alertsRaw, overview]);
 
@@ -187,8 +213,7 @@ export default function DashboardPage() {
 
   const heroBadge = useMemo(() => {
     if (!overview) return "Aucune donnée";
-
-    return `${overview?.assets?.active || 0}/${overview?.assets?.total || 0} actifs remontent · ${localStats.openIncidents} incidents à traiter`;
+    return `${overview?.assets?.active || 0}/${overview?.assets?.total || 0} actifs remontent · ${localStats.incidentsCount} incident(s) visibles`;
   }, [overview, localStats]);
 
   return (
@@ -256,12 +281,12 @@ export default function DashboardPage() {
           <StatCard
             title="Conversion en incidents"
             value={`${localStats.incidentConversionRate}%`}
-            hint="Part des détections qui aboutissent à un incident exploitable."
+            hint="Part des détections SOC qui aboutissent à un incident visible."
           />
           <StatCard
-            title="Pression réseau"
-            value={`${localStats.networkPressure}%`}
-            hint="Part de l’activité réseau qui se transforme en incidents corrélés."
+            title="Corrélation réseau"
+            value={`${localStats.networkCorrelationRate}%`}
+            hint="Part des détections réseau qualifiées en corrélations réseau."
           />
         </div>
       </PageSection>
@@ -362,13 +387,13 @@ export default function DashboardPage() {
                   <OverviewCard
                     tone="info"
                     label="Alertes SOC"
-                    value={alertsRaw.length}
-                    hint="Flux global d’alertes actuellement alimenté."
+                    value={localStats.alertsCount}
+                    hint="Flux global d’alertes actuellement visible dans Specula."
                   />
                   <OverviewCard
                     tone="info"
                     label="Détections observées"
-                    value={overview?.soc?.detections_total || 0}
+                    value={localStats.socDetections}
                     hint="Signaux observés servant à produire des incidents utiles."
                   />
                 </div>
@@ -387,19 +412,19 @@ export default function DashboardPage() {
                   <OverviewCard
                     tone="info"
                     label="Activité réseau détectée"
-                    value={overview?.network?.detections_total || 0}
+                    value={localStats.networkDetections}
                     hint="Volume d’événements réseau détectés sur la période."
                   />
                   <OverviewCard
                     tone="warning"
-                    label="Incidents réseau actifs"
-                    value={overview?.network?.incidents_total || 0}
-                    hint="Situations corrélées nécessitant une attention particulière."
+                    label="Corrélations réseau"
+                    value={localStats.networkCorrelations}
+                    hint="Situations réseau corrélées par le pipeline dédié."
                   />
                   <OverviewCard
                     tone="info"
                     label="Signalements réseau"
-                    value={overview?.network?.alerts_total || 0}
+                    value={localStats.networkSignals}
                     hint="Éléments qualifiés par le pipeline réseau."
                   />
                 </div>
@@ -414,13 +439,13 @@ export default function DashboardPage() {
                   <OverviewCard
                     tone="info"
                     label="Événements collectés"
-                    value={overview?.soc?.events_total || 0}
+                    value={localStats.socEvents}
                     hint="Base de visibilité opérationnelle remontée dans Specula."
                   />
                   <OverviewCard
                     tone="info"
                     label="Détections analysées"
-                    value={overview?.soc?.detections_total || 0}
+                    value={localStats.socDetections}
                     hint="Matière première utilisée pour qualifier et corréler."
                   />
                   <OverviewCard
