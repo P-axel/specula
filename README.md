@@ -11,7 +11,7 @@ Specula est une plateforme de détection et d’analyse d’événements de séc
 ## 📸 Aperçu
 
 ![alt text](dash-1.png)
-![alt text](dash-2.png)
+![alt text](smpecula.png)
 ---
 
 ## 🎯 Pourquoi Specula ?
