@@ -1,43 +1,70 @@
-# 🛡️ Specula — Détection d’intrusion simple et rapide
+# 🛡️ Specula — Plateforme SOC modulaire
 
-Specula est une plateforme SOC open-source permettant de détecter et analyser des activités suspectes sur votre infrastructure en quelques minutes.
+Specula est une plateforme de détection et d’analyse d’événements de sécurité, pensée pour construire un SOC **plus lisible, plus exploitable et plus accessible**.
 
-👉 Basé sur Wazuh + Suricata, avec une interface moderne prête à l’emploi.
+👉 Objectif : transformer des flux de sécurité complexes en signaux utiles, corrélés et actionnables.
+
+🌐  https://p-axel.github.io/
 
 ---
-<img width="1892" height="946" alt="dash" src="https://github.com/user-attachments/assets/1985bb12-3f76-4fba-a8b6-b51a5c26f040" />
-<img width="1920" height="1080" alt="Copie d&#39;écran_20260324_141457" src="https://github.com/user-attachments/assets/a7d007d2-b9e3-4ccc-983d-6f3b459d67b5" />
-<img width="1915" height="421" alt="Copie d&#39;écran_20260324_141547" src="https://github.com/user-attachments/assets/7ab61af2-5d64-4393-b978-417a3cb44ae2" />
 
+## 📸 Aperçu
 
+![alt text](dash-1.png)
+![alt text](dash-2.png)
+---
 
+## 🎯 Pourquoi Specula ?
 
+Mettre en place un SOC est souvent complexe, lourd et difficile à exploiter.
 
-## 🚀 Pourquoi Specula ?
+Specula propose une approche différente :
 
-Mettre en place un SOC est souvent complexe.
+- 🔍 Collecter les bons événements
+- ⚡ Corréler les signaux utiles
+- 📊 Rendre l’analyse compréhensible
+- 🧠 Structurer la détection plutôt que l’empiler
 
-Specula simplifie cette approche :
+---
 
-- 🔍 Collecte d’événements (Wazuh, Suricata)
+## 🧩 Architecture actuelle
+
+Specula s’appuie aujourd’hui sur :
+
+- **Wazuh** → collecte endpoint
+- **Suricata** → détection réseau
+
+⚠️ Important :
+
+Cette version est une **première base fonctionnelle**.
+
+- les briques sont encore liées
+- la modularité est **pensée mais en cours de construction**
+
+👉 Objectif : évoluer vers une plateforme réellement modulaire et extensible
+
+---
+
+## 🚀 Fonctionnalités
+
+- 🔍 Collecte d’événements (Wazuh / Suricata)
 - ⚡ Corrélation d’incidents
-- 📊 Interface claire pour investigation
+- 📊 Interface d’analyse claire
 - 🧪 Mode démo prêt à l’emploi
-- 🐳 Déploiement en une commande avec Docker
+- 🐳 Déploiement rapide via Docker
 
 ---
 
-## 🎯 Pour qui ?
+## 🎯 Cas d’usage
 
-- Développeurs
-- Freelances
-- Startups
-- PME sans équipe sécurité
-- Toute personne souhaitant surveiller son infrastructure simplement
+- SOC léger pour PME
+- lab cybersécurité
+- analyse d’événements
+- expérimentation de corrélation
 
 ---
 
-## ⚡ Installation (1 commande)
+## ⚡ Installation
 
 ```bash
 git clone git@github.com:P-axel/specula.git
@@ -45,151 +72,43 @@ cd specula
 cp .env.example .env
 cp .env.example .env.local
 printf 'VITE_API_BASE_URL=http://localhost:8000\n' > specula-console/.env
-# edit .env and set SURICATA_INTERFACE to your real network interface
+
+# Adapter l'interface réseau pour Suricata
+# SURICATA_INTERFACE=...
+
 chmod +x start-specula.sh
 ./start-specula.sh
 ```
 
 ---
 
-## ⚙️ Prérequis
+## 🧠 Vision
 
-- Docker
-- Docker Compose
+Specula s’inscrit dans une vision plus large :
 
----
-
-## 🌐 Accès
-
-Une fois lancé :
-
-- 🖥 Interface : http://localhost:5173
-- 🔌 API : http://localhost:8000
-
-⏳ Le premier démarrage peut prendre quelques minutes.
+- un noyau robuste et maîtrisé
+- une architecture modulaire
+- une corrélation intelligente des signaux
+- une plateforme orientée **analyse réelle**, pas juste collecte
 
 ---
 
-## 🧪 Mode démo (par défaut)
+## 🚧 État du projet
 
-Specula démarre automatiquement avec :
+- version actuelle : **MVP fonctionnel**
+- objectif : SIEM modulaire avancé
 
-- incidents simulés
-- alertes Wazuh / Suricata mockées
-- corrélation active
-
-👉 Aucun agent requis pour tester  
-👉 Vous pouvez voir immédiatement comment fonctionne la détection
+👉 le projet évolue activement
 
 ---
 
-## 🔌 Mode réel (optionnel)
+## 💼 À propos
 
-Vous pouvez connecter votre infrastructure réelle.
+Pierre-Axel Annonier  
+Ingénieur cybersécurité — audit, infrastructure, automatisation
 
----
-
-### 🔹 Wazuh (endpoints)
-
-#### Linux
-
-```bash
-curl -so wazuh-agent.deb https://packages.wazuh.com/4.x/apt/pool/main/w/wazuh-agent/wazuh-agent_4.x_amd64.deb
-sudo WAZUH_MANAGER='IP_DU_SERVEUR' dpkg -i wazuh-agent.deb
-sudo systemctl start wazuh-agent
-```
-
-#### Windows
-
-- Télécharger l’agent Wazuh
-- Configurer l’IP du manager
-- Démarrer le service
-
----
-
-### 🔹 Suricata (réseau)
-
-```bash
-sudo apt install suricata
-```
-
-Configurer `eve.json` :
-
-```yaml
-outputs:
-  - eve-log:
-      enabled: yes
-      filename: /var/log/suricata/eve.json
-```
-
----
-
-## ⚙️ Configuration
-
-Modifier `.env` :
-
-```env
-USE_FIXTURES=true
-```
-
-- `true` → mode démo  
-- `false` → mode réel  
-
----
-
-## 🧠 Architecture
-
-Specula est structuré en modules :
-
-- `specula-core` → API + moteur de corrélation  
-- `specula-console` → interface utilisateur  
-- `connectors` → intégration Wazuh / Suricata  
-- `fixtures` → simulation pour tests  
-
----
-
-## 🧪 Cas d’usage
-
-- Surveiller un serveur (VPS)  
-- Détecter des tentatives d’intrusion  
-- Visualiser les événements de sécurité  
-- Mettre en place une base SOC rapidement  
-
----
-
-## 🧯 Dépannage rapide
-
-- Vérifier que Docker est lancé  
-- Vérifier les ports disponibles (5173, 8000)  
-- Attendre quelques minutes au premier démarrage  
-
-Logs :
-
-```bash
-docker compose logs -f
-```
-
----
-
-## 🚀 Roadmap
-
-- 🔥 Scoring intelligent  
-- ⚡ Corrélation temps réel avancée  
-- 🧭 Mapping MITRE ATT&CK  
-- 🏢 Multi-tenant SOC  
-
----
-
-## 💼 Besoin d’aide ?
-
-Je propose :
-
-- installation complète  
-- configuration adaptée à votre infrastructure  
-- mise en place des alertes  
-- accompagnement sécurité  
-
-👉 Contact : (ton mail ou LinkedIn)
+🌐 https://p-axel.github.io/  
+💼 https://www.linkedin.com/in/pierre-axel-annonier
 
 ---
 
