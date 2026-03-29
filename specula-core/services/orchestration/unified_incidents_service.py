@@ -25,10 +25,15 @@ class UnifiedIncidentsService:
         self.aggregator = aggregator
         self.correlator = correlator or UnifiedCorrelator(window_minutes=30)
 
+        # Contrôle du mode (prod ou autre)
         self.mode = str(os.getenv("SPECULA_MODE", "prod")).strip().lower()
+        # Le fallback est activé lorsque ce n'est pas en mode "prod"
         self.enable_detections_fallback = self.mode != "prod"
 
     def _detection_to_incident(self, detection: dict[str, Any]) -> dict[str, Any]:
+        """
+        Normalisation d'une détection pour en faire un incident exploitable.
+        """
         severity = str(detection.get("severity") or "medium").strip().lower()
         status = str(detection.get("status") or "open").strip().lower()
 
@@ -109,19 +114,24 @@ class UnifiedIncidentsService:
         }
 
     def list_incidents(self, limit: int = 50) -> list[dict[str, Any]]:
+        """
+        Récupère la liste des incidents à partir des détections agrégées.
+        Active le fallback en fonction du mode et des données disponibles.
+        """
         fetch_limit = max(limit * 20, 200) if limit > 0 else 200
         detections = self.aggregator.list_detections(limit=fetch_limit)
         incidents = self.correlator.correlate(detections)
 
+        # Si aucun incident n'a été trouvé, on utilise les détections comme fallback
         if not incidents and detections and self.enable_detections_fallback:
             incidents = [self._detection_to_incident(item) for item in detections]
 
-        if limit <= 0:
-            return incidents
-
-        return incidents[:limit]
+        return incidents[:limit] if limit > 0 else incidents
 
     def get_overview(self, limit: int = 50) -> dict[str, Any]:
+        """
+        Récupère un résumé des incidents, incluant les incidents ouverts et à haute priorité.
+        """
         incidents = self.list_incidents(limit=limit)
 
         open_count = sum(
