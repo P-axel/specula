@@ -7,7 +7,7 @@ from services.themes_service import ThemesService
 
 class NetworkAlertsService:
     """
-    Transforme les détections réseau en alertes réseau lisibles par Specula.
+    Transforme les détections réseau normalisées en alertes réseau lisibles.
     """
 
     def __init__(self) -> None:
@@ -18,17 +18,31 @@ class NetworkAlertsService:
 
         alerts: list[dict[str, Any]] = []
         for item in detections:
-            severity = self._normalize_severity(item.get("severity"))
-            priority = item.get("priority") or item.get("risk_level") or severity
+            event = item.get("event", {}) or {}
+            source = item.get("source", {}) or {}
+            destination = item.get("destination", {}) or {}
+            network = item.get("network", {}) or {}
+            risk = item.get("risk", {}) or {}
+            rule = item.get("rule", {}) or {}
+            detection = item.get("detection", {}) or {}
+            suricata = item.get("suricata", {}) or {}
 
-            src_ip = item.get("src_ip") or item.get("source_ip")
-            src_port = item.get("src_port")
-            dest_ip = item.get("dest_ip") or item.get("destination_ip")
-            dest_port = item.get("dest_port")
+            severity = self._normalize_severity(
+                event.get("severity")
+                or detection.get("severity_label")
+                or detection.get("severity")
+            )
 
-            protocol = item.get("protocol") or item.get("proto")
-            app_proto = item.get("app_proto")
-            direction = item.get("direction")
+            priority = risk.get("level") or severity
+
+            src_ip = source.get("ip") or item.get("src_ip") or item.get("source_ip")
+            src_port = source.get("port") or item.get("src_port")
+            dest_ip = destination.get("ip") or item.get("dest_ip") or item.get("destination_ip")
+            dest_port = destination.get("port") or item.get("dest_port")
+
+            protocol = network.get("transport") or item.get("protocol") or item.get("proto")
+            app_proto = network.get("application") or network.get("protocol") or item.get("app_proto")
+            direction = network.get("direction") or item.get("direction")
 
             title = self._build_title(item)
             summary = self._build_summary(
@@ -46,22 +60,19 @@ class NetworkAlertsService:
                     "timestamp": item.get("timestamp"),
                     "title": title,
                     "summary": summary,
-                    "description": item.get("description") or summary,
-                    "status": item.get("status") or "open",
-                    "source_engine": item.get("engine") or item.get("source") or "suricata",
+                    "description": detection.get("title") or item.get("description") or summary,
+                    "status": detection.get("status") or "open",
+                    "source_engine": item.get("source_context", {}).get("source")
+                    or event.get("provider")
+                    or detection.get("provider")
+                    or "suricata",
                     "theme": "network",
                     "severity": severity,
                     "priority": priority,
-                    "risk_score": item.get("risk_score"),
-                    "confidence": item.get("confidence"),
-                    "category": item.get("category"),
-                    "asset_name": (
-                        item.get("asset_name")
-                        or item.get("hostname")
-                        or dest_ip
-                        or src_ip
-                        or "unknown"
-                    ),
+                    "risk_score": risk.get("score") or item.get("risk_score"),
+                    "confidence": risk.get("confidence") or item.get("confidence"),
+                    "category": event.get("category") or detection.get("category") or item.get("category"),
+                    "asset_name": dest_ip or src_ip or "unknown",
                     "src_ip": src_ip,
                     "src_port": src_port,
                     "src_label": self._format_endpoint(src_ip, src_port),
@@ -72,12 +83,8 @@ class NetworkAlertsService:
                     "protocol_label": self._format_protocol(protocol, app_proto),
                     "app_proto": app_proto,
                     "direction": direction,
-                    "flow_id": item.get("flow_id") or item.get("metadata", {}).get("flow_id"),
-                    "rule_id": (
-                        item.get("rule_id")
-                        or item.get("source_rule_id")
-                        or item.get("metadata", {}).get("suricata_signature_id")
-                    ),
+                    "flow_id": suricata.get("flow_id") or item.get("flow_id"),
+                    "rule_id": rule.get("id") or detection.get("rule_id") or item.get("rule_id"),
                     "recommended_actions": item.get("recommended_actions", []),
                     "evidence": item,
                 }
@@ -86,32 +93,48 @@ class NetworkAlertsService:
         return alerts
 
     def _build_alert_id(self, item: dict[str, Any]) -> str:
-        flow_id = item.get("flow_id") or item.get("metadata", {}).get("flow_id") or "unknown"
-        rule_id = (
-            item.get("rule_id")
-            or item.get("source_rule_id")
-            or item.get("metadata", {}).get("suricata_signature_id")
-            or "unknown"
-        )
-        direction = item.get("direction", "na")
+        suricata = item.get("suricata", {}) or {}
+        rule = item.get("rule", {}) or {}
+        network = item.get("network", {}) or {}
+        event = item.get("event", {}) or {}
 
-        return f"network:{flow_id}:{rule_id}:{direction}"
+        flow_id = suricata.get("flow_id") or item.get("flow_id") or "unknown"
+        rule_id = rule.get("id") or item.get("rule_id") or "unknown"
+        direction = network.get("direction") or item.get("direction") or "na"
+        event_id = event.get("id") or "no-event"
+
+        return f"network:{flow_id}:{rule_id}:{direction}:{event_id}"
 
     def _build_title(self, item: dict[str, Any]) -> str:
-        title = str(item.get("title") or "").strip()
+        detection = item.get("detection", {}) or {}
+        rule = item.get("rule", {}) or {}
+        event = item.get("event", {}) or {}
+        network = item.get("network", {}) or {}
+
+        title = str(
+            detection.get("title")
+            or rule.get("name")
+            or item.get("title")
+            or ""
+        ).strip()
         if title:
             return title
 
-        app_proto = str(item.get("app_proto") or "").lower()
-        category = str(item.get("category") or "").lower()
+        app_proto = str(
+            network.get("application")
+            or network.get("protocol")
+            or item.get("app_proto")
+            or ""
+        ).lower()
+        category = str(event.get("category") or item.get("category") or "").lower()
 
-        if category == "network_reconnaissance":
+        if category == "network_scan":
             return "Reconnaissance réseau détectée"
-        if category == "suspicious_http":
+        if category == "network_http":
             return "Trafic HTTP suspect détecté"
-        if category == "dns_anomaly":
+        if category == "network_dns":
             return "Anomalie DNS détectée"
-        if category == "tls_anomaly":
+        if category == "network_tls":
             return "Anomalie TLS détectée"
         if app_proto == "http":
             return "Événement HTTP à surveiller"

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from common.event import Event
-from services.unified_events_service import UnifiedEventsService
+from services.orchestration.unified_events_service import UnifiedEventsService
 
 
 class UnifiedDetectionsService:

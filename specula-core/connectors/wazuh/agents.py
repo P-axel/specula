@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Optional
 
 from .client import WazuhClient
 from common.asset import Asset
-from normalization.asset_normalizer import AssetNormalizer
+from normalization.wazuh_normalizer import WazuhNormalizer
 from common.time_utils import relative_time
 from common.asset_health import compute_health
 
@@ -51,7 +51,7 @@ class WazuhAgentsConnector:
 
     @staticmethod
     def to_asset(agent: Dict[str, Any]) -> Asset:
-        asset = AssetNormalizer.from_wazuh_agent(agent)
+        asset = WazuhNormalizer.from_wazuh_agent(agent)
 
         groups = WazuhAgentsConnector._normalize_groups(agent)
         last_seen = agent.get("lastKeepAlive") or asset.last_seen

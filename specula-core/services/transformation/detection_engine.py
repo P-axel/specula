@@ -1,7 +1,6 @@
 from typing import Any, Dict, List
 
-from services.risk_scoring import RiskScoringService
-
+from services.transformation.risk_scoring import RiskScoringService
 
 class DetectionEngine:
     def __init__(self) -> None:

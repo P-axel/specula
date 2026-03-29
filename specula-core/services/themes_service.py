@@ -4,8 +4,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from services.suricata_service import SuricataService
-
+from services.ingestion.suricata_service import SuricataService
 
 class ThemesService:
     """

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from services.incident_correlator import IncidentCorrelator
+
+from services.orchestration.unified_correlator import UnifiedCorrelator
 from services.themes_service import ThemesService
 
 
@@ -13,8 +14,8 @@ class NetworkIncidentsService:
 
     def __init__(self) -> None:
         self.themes_service = ThemesService()
-        self.incident_correlator = IncidentCorrelator()
-
+        self.incident_correlator = UnifiedCorrelator()
+        
     def list_network_incidents(self, limit: int = 50) -> list[dict[str, Any]]:
         detections = self.themes_service.list_network_detections(limit=max(limit * 10, 100))
         incidents = self.incident_correlator.correlate(detections)

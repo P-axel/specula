@@ -5,8 +5,7 @@ from typing import Any
 
 from connectors.suricata.eve_connector import SuricataEveConnector
 from normalization.suricata_normalizer import SuricataNormalizer
-from services.suricata_detection_engine import SuricataDetectionEngine
-
+from services.transformation.suricata_detection_engine import SuricataDetectionEngine
 
 class SuricataService:
     """
