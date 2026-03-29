@@ -21,6 +21,8 @@ class WazuhClient:
         verify_ssl: Optional[bool] = None,
         timeout: Optional[int] = None,
         auth_type: str = "token",  # "token" pour Wazuh API, "basic" pour l'indexer
+        max_retries: int = 10,
+        retry_delay_seconds: int = 5,
     ) -> None:
         self.base_url = (base_url or settings.wazuh_base_url).rstrip("/")
         self.username = username or settings.wazuh_username
@@ -28,6 +30,8 @@ class WazuhClient:
         self.verify_ssl = verify_ssl if verify_ssl is not None else settings.wazuh_verify_tls
         self.timeout = timeout if timeout is not None else settings.wazuh_timeout
         self.auth_type = auth_type
+        self.max_retries = max_retries
+        self.retry_delay_seconds = retry_delay_seconds
 
         self.token: Optional[str] = None
         self.token_expire_at: float = 0.0
@@ -42,9 +46,11 @@ class WazuhClient:
             raise ValueError("auth_type doit être 'token' ou 'basic'")
 
         logger.info(
-            "WazuhClient initialisé pour %s (auth_type=%s)",
+            "WazuhClient initialisé pour %s (auth_type=%s, retries=%s, retry_delay=%ss)",
             self.base_url,
             self.auth_type,
+            self.max_retries,
+            self.retry_delay_seconds,
         )
 
     def authenticate(self) -> str:
@@ -60,29 +66,57 @@ class WazuhClient:
 
         logger.debug("Authentification Wazuh sur %s", url)
 
-        try:
-            response = requests.post(
-                url,
-                params=params,
-                auth=HTTPBasicAuth(self.username, self.password),
-                timeout=self.timeout,
-                verify=self.verify_ssl,
-            )
-            response.raise_for_status()
-        except RequestException as exc:
-            logger.error("Échec authentification Wazuh: %s", exc)
-            raise RuntimeError(f"Échec de l'authentification Wazuh: {exc}") from exc
+        last_exc: Optional[Exception] = None
 
-        token = response.text.strip().strip('"')
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                response = requests.post(
+                    url,
+                    params=params,
+                    auth=HTTPBasicAuth(self.username, self.password),
+                    timeout=self.timeout,
+                    verify=self.verify_ssl,
+                )
+                response.raise_for_status()
 
-        if not token:
-            logger.error("Token Wazuh vide")
-            raise RuntimeError("Token Wazuh vide")
+                token = response.text.strip().strip('"')
+                if not token:
+                    raise RuntimeError("Token Wazuh vide")
 
-        self.token = token
-        self.token_expire_at = time.time() + (15 * 60) - 30
-        logger.debug("Token Wazuh obtenu")
-        return token
+                self.token = token
+                self.token_expire_at = time.time() + (15 * 60) - 30
+
+                logger.info(
+                    "Authentification Wazuh réussie sur %s à la tentative %s/%s",
+                    self.base_url,
+                    attempt,
+                    self.max_retries,
+                )
+                return token
+
+            except (RequestException, RuntimeError) as exc:
+                last_exc = exc
+
+                if attempt < self.max_retries:
+                    logger.warning(
+                        "Échec authentification Wazuh sur %s (tentative %s/%s): %s. "
+                        "Nouvel essai dans %ss.",
+                        self.base_url,
+                        attempt,
+                        self.max_retries,
+                        exc,
+                        self.retry_delay_seconds,
+                    )
+                    time.sleep(self.retry_delay_seconds)
+                else:
+                    logger.error(
+                        "Échec authentification Wazuh sur %s après %s tentatives: %s",
+                        self.base_url,
+                        self.max_retries,
+                        exc,
+                    )
+
+        raise RuntimeError(f"Échec de l'authentification Wazuh: {last_exc}") from last_exc
 
     def _ensure_token(self) -> None:
         if self.auth_type == "token" and (
@@ -111,6 +145,24 @@ class WazuhClient:
             endpoint = f"/{endpoint}"
         return f"{self.base_url}{endpoint}"
 
+    def _do_request(
+        self,
+        method: str,
+        url: str,
+        params: Optional[Dict[str, Any]] = None,
+        json: Optional[Dict[str, Any]] = None,
+    ) -> Response:
+        return requests.request(
+            method=method,
+            url=url,
+            headers=self._headers(),
+            params=params or {},
+            json=json,
+            auth=self._auth(),
+            timeout=self.timeout,
+            verify=self.verify_ssl,
+        )
+
     def _request(
         self,
         method: str,
@@ -128,38 +180,55 @@ class WazuhClient:
             json or {},
         )
 
-        try:
-            response = requests.request(
-                method=method,
-                url=url,
-                headers=self._headers(),
-                params=params or {},
-                json=json,
-                auth=self._auth(),
-                timeout=self.timeout,
-                verify=self.verify_ssl,
-            )
+        last_exc: Optional[Exception] = None
 
-            if response.status_code == 401 and self.auth_type == "token":
-                logger.warning("401 reçu, renouvellement du token Wazuh")
-                self.authenticate()
-                response = requests.request(
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                response = self._do_request(
                     method=method,
                     url=url,
-                    headers=self._headers(),
-                    params=params or {},
+                    params=params,
                     json=json,
-                    auth=self._auth(),
-                    timeout=self.timeout,
-                    verify=self.verify_ssl,
                 )
 
-            response.raise_for_status()
-            return response
+                if response.status_code == 401 and self.auth_type == "token":
+                    logger.warning(
+                        "401 reçu sur %s, renouvellement du token Wazuh", url
+                    )
+                    self.authenticate()
+                    response = self._do_request(
+                        method=method,
+                        url=url,
+                        params=params,
+                        json=json,
+                    )
 
-        except RequestException as exc:
-            logger.error("Erreur appel Wazuh sur %s: %s", url, exc)
-            raise RuntimeError(f"Erreur lors de l'appel Wazuh sur {url}: {exc}") from exc
+                response.raise_for_status()
+                return response
+
+            except RequestException as exc:
+                last_exc = exc
+
+                if attempt < self.max_retries:
+                    logger.warning(
+                        "Erreur appel Wazuh sur %s (tentative %s/%s): %s. "
+                        "Nouvel essai dans %ss.",
+                        url,
+                        attempt,
+                        self.max_retries,
+                        exc,
+                        self.retry_delay_seconds,
+                    )
+                    time.sleep(self.retry_delay_seconds)
+                else:
+                    logger.error(
+                        "Erreur appel Wazuh sur %s après %s tentatives: %s",
+                        url,
+                        self.max_retries,
+                        exc,
+                    )
+
+        raise RuntimeError(f"Erreur lors de l'appel Wazuh sur {url}: {last_exc}") from last_exc
 
     @staticmethod
     def _parse_json_response(response: Response, endpoint: str) -> Dict[str, Any]:
@@ -171,7 +240,9 @@ class WazuhClient:
             return response.json()
         except ValueError as exc:
             logger.error("Réponse JSON invalide pour %s", endpoint)
-            raise RuntimeError(f"Réponse JSON invalide renvoyée par Wazuh pour {endpoint}") from exc
+            raise RuntimeError(
+                f"Réponse JSON invalide renvoyée par Wazuh pour {endpoint}"
+            ) from exc
 
     def get(
         self,

@@ -20,20 +20,99 @@ function DetailRow({ label, value }) {
   );
 }
 
+function normalizeList(value) {
+  if (Array.isArray(value)) {
+    return value.filter(Boolean);
+  }
+  if (value == null || value === "") {
+    return [];
+  }
+  return [value];
+}
+
 function DetailTagList({ title, items, emptyLabel }) {
+  const normalizedItems = normalizeList(items);
+
   return (
     <div className="incident-detail-block">
       <h4>{title}</h4>
-      {items?.length ? (
+      {normalizedItems.length ? (
         <div className="incident-chip-list">
-          {items.map((item, index) => (
-            <span className="incident-chip" key={`${title}-${index}-${item}`}>
-              {item}
+          {normalizedItems.map((item, index) => (
+            <span className="incident-chip" key={`${title}-${index}-${String(item)}`}>
+              {String(item)}
             </span>
           ))}
         </div>
       ) : (
         <p className="empty-state">{emptyLabel}</p>
+      )}
+    </div>
+  );
+}
+
+function SourceBadge({ source }) {
+  if (!source) return null;
+
+  const normalized = String(source).toLowerCase();
+  const label =
+    normalized === "correlated"
+      ? "Corrélé"
+      : normalized === "detection_fallback"
+      ? "Détection"
+      : normalized;
+
+  return <span className="incident-chip">{label}</span>;
+}
+
+function TimelineBlock({ timeline }) {
+  const items = normalizeList(timeline);
+
+  return (
+    <div className="incident-detail-block">
+      <h4>Timeline</h4>
+      {!items.length ? (
+        <p className="empty-state">Aucun événement de timeline disponible.</p>
+      ) : (
+        <div className="incident-linked-alerts">
+          {items.map((entry, index) => (
+            <div
+              className="incident-linked-alert"
+              key={`${entry.timestamp || "timeline"}-${index}`}
+            >
+              <div className="incident-linked-alert__top">
+                <div className="incident-linked-alert__title">
+                  {entry.title || "Signal"}
+                </div>
+                <PriorityBadge value={entry.severity} />
+              </div>
+
+              <div
+                className="incident-chip-list"
+                style={{ marginTop: 10, marginBottom: 10 }}
+              >
+                {entry.category ? (
+                  <span className="incident-chip">{entry.category}</span>
+                ) : null}
+                {entry.source_engine ? (
+                  <span className="incident-chip">{entry.source_engine}</span>
+                ) : null}
+                {entry.user_name ? (
+                  <span className="incident-chip">{entry.user_name}</span>
+                ) : null}
+                {entry.process_name ? (
+                  <span className="incident-chip">{entry.process_name}</span>
+                ) : null}
+              </div>
+
+              <div className="incident-linked-alert__meta">
+                <span>{formatDateTime(entry.timestamp)}</span>
+                <span>{entry.src_ip || "-"}</span>
+                <span>{entry.dest_ip || "-"}</span>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -51,18 +130,37 @@ export default function IncidentDetailPanel({ incident, linkedAlerts }) {
   }
 
   const pairs = formatPairsList(incident.ip_pairs || incident.peer_ips);
+  const engines = normalizeList(incident.engines);
+  const themes = normalizeList(incident.themes);
+  const categories = normalizeList(incident.categories || incident.category);
+  const cves = normalizeList(incident.cves);
+  const mitre = normalizeList(incident.mitre_techniques || incident.mitre);
+  const users = normalizeList(incident.users || incident.user_name);
+  const processes = normalizeList(incident.processes || incident.process_name);
+  const files = normalizeList(incident.files);
+  const registryKeys = normalizeList(incident.registry_keys);
+  const evidence = normalizeList(incident.evidence);
+  const timeline = normalizeList(incident.timeline);
 
   return (
     <div className="incident-detail-panel">
       <div className="incident-detail-header">
         <div className="incident-detail-kicker">Incident</div>
-        <h3>{incident.title || "-"}</h3>
+        <h3>{incident.title || incident.name || "-"}</h3>
       </div>
 
       <div className="incident-chip-list" style={{ marginBottom: 16 }}>
         <PriorityBadge value={incident.severity} />
-        <IncidentKindBadge kind={incident.kind} />
-        <IncidentEngineBadge engine={incident.engine} />
+        <IncidentKindBadge kind={incident.kind || incident.incident_domain} />
+        <IncidentEngineBadge
+          engine={
+            incident.engine ||
+            incident.dominant_engine ||
+            engines[0] ||
+            incident.provider
+          }
+        />
+        <SourceBadge source={incident.source} />
       </div>
 
       <p className="incident-detail-description">
@@ -70,29 +168,86 @@ export default function IncidentDetailPanel({ incident, linkedAlerts }) {
       </p>
 
       <div className="incident-detail-grid">
-        <DetailRow label="Famille" value={KIND_LABELS[incident.kind] || "Autre"} />
+        <DetailRow
+          label="Famille"
+          value={
+            KIND_LABELS[incident.kind] ||
+            KIND_LABELS[incident.incident_domain] ||
+            incident.incident_domain ||
+            "Autre"
+          }
+        />
         <DetailRow
           label="Moteur de détection"
           value={
-            incident.engine === "non précisé"
-              ? "Moteur non identifié"
-              : incident.engine
+            incident.engine ||
+            incident.dominant_engine ||
+            incident.provider ||
+            engines[0] ||
+            "Moteur non identifié"
           }
         />
         <DetailRow label="Sévérité" value={incident.severity} />
+        <DetailRow label="Priorité" value={incident.priority} />
         <DetailRow label="Score" value={incident.risk_score} />
+        <DetailRow label="Confiance" value={incident.confidence} />
         <DetailRow label="Actif" value={incident.asset_name} />
-        <DetailRow label="Catégorie" value={incident.category} />
-        <DetailRow label="Type" value={incident.event_type} />
+        <DetailRow label="Catégorie" value={incident.category || incident.dominant_category} />
+        <DetailRow label="Type" value={incident.event_type || incident.type} />
         <DetailRow label="Statut" value={incident.status} />
         <DetailRow label="Agent" value={incident.agent_name} />
         <DetailRow label="Agent ID" value={incident.agent_id} />
+        <DetailRow label="Utilisateur principal" value={incident.user_name} />
+        <DetailRow label="Processus principal" value={incident.process_name} />
+        <DetailRow label="IP source" value={incident.src_ip} />
+        <DetailRow label="IP destination" value={incident.dest_ip} />
         <DetailRow label="Premier vu" value={formatDateTime(incident.first_seen)} />
         <DetailRow label="Dernier vu" value={formatDateTime(incident.last_seen)} />
-        <DetailRow label="Détections" value={incident.detections_count ?? 0} />
+        <DetailRow
+          label="Détections"
+          value={incident.detections_count ?? incident.signals_count ?? 0}
+        />
       </div>
 
-      {incident.kind === "network" && (
+      {incident.why_it_matters ? (
+        <div className="incident-detail-block">
+          <h4>Pourquoi c’est important</h4>
+          <p className="incident-detail-description">{incident.why_it_matters}</p>
+        </div>
+      ) : null}
+
+      {incident.recommended_actions?.length ? (
+        <div className="incident-detail-block">
+          <h4>Actions recommandées</h4>
+          <div className="incident-chip-list">
+            {incident.recommended_actions.map((action, index) => (
+              <span className="incident-chip" key={`action-${index}`}>
+                {action}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      <DetailTagList
+        title="Moteurs impliqués"
+        items={engines}
+        emptyLabel="Aucun moteur identifié."
+      />
+
+      <DetailTagList
+        title="Thèmes"
+        items={themes}
+        emptyLabel="Aucun thème disponible."
+      />
+
+      <DetailTagList
+        title="Catégories"
+        items={categories}
+        emptyLabel="Aucune catégorie disponible."
+      />
+
+      {incident.kind === "network" || incident.incident_domain === "network" ? (
         <>
           <DetailTagList
             title="Pairs IP"
@@ -116,7 +271,7 @@ export default function IncidentDetailPanel({ incident, linkedAlerts }) {
             </div>
           </div>
         </>
-      )}
+      ) : null}
 
       {(incident.package_name ||
         incident.package_version ||
@@ -133,45 +288,47 @@ export default function IncidentDetailPanel({ incident, linkedAlerts }) {
 
       <DetailTagList
         title="CVE associés"
-        items={incident.cves}
+        items={cves}
         emptyLabel="Aucun CVE associé."
       />
 
       <DetailTagList
         title="MITRE / ATT&CK"
-        items={incident.mitre}
+        items={mitre}
         emptyLabel="Aucune référence MITRE disponible."
       />
 
       <DetailTagList
         title="Utilisateurs impliqués"
-        items={incident.users}
+        items={users}
         emptyLabel="Aucun utilisateur identifié."
       />
 
       <DetailTagList
         title="Processus observés"
-        items={incident.processes}
+        items={processes}
         emptyLabel="Aucun processus remonté."
       />
 
       <DetailTagList
         title="Fichiers / chemins"
-        items={incident.files}
+        items={files}
         emptyLabel="Aucun fichier remonté."
       />
 
       <DetailTagList
         title="Clés registre"
-        items={incident.registry_keys}
+        items={registryKeys}
         emptyLabel="Aucune clé registre remontée."
       />
 
       <DetailTagList
         title="Éléments d'analyse"
-        items={incident.evidence}
+        items={evidence}
         emptyLabel="Aucun élément complémentaire."
       />
+
+      <TimelineBlock timeline={timeline} />
 
       <div className="incident-detail-block">
         <h4>Signaux liés</h4>

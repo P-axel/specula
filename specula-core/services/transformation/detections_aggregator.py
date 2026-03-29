@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+import os
+from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable
+
 from providers.base_provider import DetectionProvider
 from specula_logging.logger import get_logger
 
 logger = get_logger(__name__)
+
+USE_TEST_DETECTIONS = (
+    os.getenv("SPECULA_USE_TEST_DETECTIONS", "false").strip().lower() == "true"
+)
 
 
 class DetectionsAggregator:
@@ -30,7 +37,176 @@ class DetectionsAggregator:
         self.providers.clear()
 
     def list_providers(self) -> list[str]:
-        return [getattr(provider, "name", provider.__class__.__name__) for provider in self.providers]
+        return [
+            getattr(provider, "name", provider.__class__.__name__)
+            for provider in self.providers
+        ]
+
+    # ==========================================================
+    # HELPERS
+    # ==========================================================
+
+    def _now_iso(self, minutes_ago: int = 0) -> str:
+        return (datetime.now(timezone.utc) - timedelta(minutes=minutes_ago)).isoformat()
+
+    def _safe_int(self, value: Any, default: int = 0) -> int:
+        try:
+            if value in (None, ""):
+                return default
+            return int(value)
+        except Exception:
+            return default
+
+    # ==========================================================
+    # TEST DATA
+    # ==========================================================
+
+    def _get_test_detections(self) -> list[dict[str, Any]]:
+        return [
+            # Identity / bruteforce
+            {
+                "id": "test-auth-1",
+                "title": "Échecs répétés d’authentification",
+                "name": "Échecs répétés d’authentification",
+                "timestamp": self._now_iso(8),
+                "created_at": self._now_iso(8),
+                "category": "auth",
+                "theme": "identity",
+                "severity": "high",
+                "priority": "high",
+                "risk_score": 72,
+                "source": "wazuh",
+                "source_engine": "wazuh",
+                "engine": "wazuh",
+                "asset_name": "srv-auth-01",
+                "hostname": "srv-auth-01",
+                "user_name": "admin",
+                "status": "open",
+                "description": "Plusieurs échecs d’authentification détectés pour le compte admin.",
+                "summary": "Échecs répétés sur compte admin",
+                "confidence": 0.82,
+                "rule_id": "AUTH-1001",
+            },
+            {
+                "id": "test-auth-2",
+                "title": "Échecs répétés d’authentification",
+                "name": "Échecs répétés d’authentification",
+                "timestamp": self._now_iso(6),
+                "created_at": self._now_iso(6),
+                "category": "auth",
+                "theme": "identity",
+                "severity": "high",
+                "priority": "high",
+                "risk_score": 78,
+                "source": "wazuh",
+                "source_engine": "wazuh",
+                "engine": "wazuh",
+                "asset_name": "srv-auth-01",
+                "hostname": "srv-auth-01",
+                "user_name": "admin",
+                "status": "open",
+                "description": "Nouvelle série d’échecs d’authentification sur le même actif.",
+                "summary": "Nouvelle série d’échecs admin",
+                "confidence": 0.86,
+                "rule_id": "AUTH-1001",
+            },
+            # Network scan
+            {
+                "id": "test-net-1",
+                "title": "Scan réseau détecté",
+                "name": "Scan réseau détecté",
+                "timestamp": self._now_iso(12),
+                "created_at": self._now_iso(12),
+                "category": "network_scan",
+                "theme": "network",
+                "severity": "medium",
+                "priority": "medium",
+                "risk_score": 45,
+                "source": "suricata",
+                "source_engine": "suricata",
+                "engine": "suricata",
+                "asset_name": "web-frontend-01",
+                "hostname": "web-frontend-01",
+                "src_ip": "192.168.1.50",
+                "dest_ip": "10.0.10.20",
+                "status": "open",
+                "description": "Activité de scan réseau détectée vers le frontal web.",
+                "summary": "Scan sur frontal web",
+                "confidence": 0.74,
+                "rule_id": "NET-2001",
+            },
+            {
+                "id": "test-net-2",
+                "title": "Scan réseau détecté",
+                "name": "Scan réseau détecté",
+                "timestamp": self._now_iso(11),
+                "created_at": self._now_iso(11),
+                "category": "network_scan",
+                "theme": "network",
+                "severity": "medium",
+                "priority": "medium",
+                "risk_score": 48,
+                "source": "suricata",
+                "source_engine": "suricata",
+                "engine": "suricata",
+                "asset_name": "web-frontend-01",
+                "hostname": "web-frontend-01",
+                "src_ip": "192.168.1.50",
+                "dest_ip": "10.0.10.20",
+                "status": "open",
+                "description": "Répétition du comportement de scan sur le même actif.",
+                "summary": "Scan récurrent",
+                "confidence": 0.77,
+                "rule_id": "NET-2001",
+            },
+            # System / suspicious process
+            {
+                "id": "test-sys-1",
+                "title": "Processus suspect observé",
+                "name": "Processus suspect observé",
+                "timestamp": self._now_iso(15),
+                "created_at": self._now_iso(15),
+                "category": "process",
+                "theme": "system",
+                "severity": "high",
+                "priority": "high",
+                "risk_score": 66,
+                "source": "wazuh",
+                "source_engine": "wazuh",
+                "engine": "wazuh",
+                "asset_name": "db-server-01",
+                "hostname": "db-server-01",
+                "process_name": "nc",
+                "status": "open",
+                "description": "Présence du processus nc sur un serveur critique.",
+                "summary": "Processus nc détecté",
+                "confidence": 0.79,
+                "rule_id": "PROC-3001",
+            },
+            {
+                "id": "test-sys-2",
+                "title": "Processus suspect observé",
+                "name": "Processus suspect observé",
+                "timestamp": self._now_iso(13),
+                "created_at": self._now_iso(13),
+                "category": "process",
+                "theme": "system",
+                "severity": "high",
+                "priority": "high",
+                "risk_score": 69,
+                "source": "wazuh",
+                "source_engine": "wazuh",
+                "engine": "wazuh",
+                "asset_name": "db-server-01",
+                "hostname": "db-server-01",
+                "process_name": "nc",
+                "status": "open",
+                "description": "Deuxième occurrence du processus suspect sur le même serveur.",
+                "summary": "Processus nc récurrent",
+                "confidence": 0.83,
+                "rule_id": "PROC-3001",
+            },
+        ]
 
     # ==========================================================
     # NORMALISATION
@@ -52,7 +228,35 @@ class DetectionsAggregator:
                 "dest_ip",
             ]
         ):
-            return item
+            normalized = dict(item)
+
+            source_engine = str(
+                normalized.get("source_engine")
+                or normalized.get("engine")
+                or normalized.get("source")
+                or "unknown"
+            ).strip().lower()
+
+            severity = str(
+                normalized.get("severity")
+                or normalized.get("priority")
+                or "info"
+            ).strip().lower()
+
+            normalized.setdefault("name", normalized.get("title"))
+            normalized.setdefault("created_at", normalized.get("timestamp"))
+            normalized.setdefault("priority", severity)
+            normalized.setdefault("severity", severity)
+            normalized.setdefault("source_engine", source_engine)
+            normalized.setdefault("engine", source_engine)
+            normalized.setdefault("source", source_engine)
+            normalized.setdefault(
+                "risk_score",
+                self._safe_int(normalized.get("risk_score"), 0),
+            )
+            normalized.setdefault("status", "open")
+
+            return normalized
 
         event = item.get("event")
         if not isinstance(event, dict):
@@ -76,8 +280,27 @@ class DetectionsAggregator:
             or "event"
         )
 
-        severity = str(event.get("severity") or risk.get("level") or "info").lower()
-        source_engine = str(event.get("provider") or observer.get("product") or "unknown").lower()
+        severity = str(
+            event.get("severity")
+            or risk.get("level")
+            or "info"
+        ).strip().lower()
+
+        source_engine = str(
+            event.get("provider")
+            or observer.get("product")
+            or "unknown"
+        ).strip().lower()
+
+        category = str(
+            event.get("category")
+            or event.get("type")
+            or "unknown"
+        ).strip().lower()
+
+        theme = "network" if any(
+            token in category for token in ["network", "dns", "tls", "http", "flow", "scan"]
+        ) else "generic"
 
         return {
             "id": event.get("id") or item.get("id"),
@@ -85,10 +308,10 @@ class DetectionsAggregator:
             "created_at": item.get("timestamp"),
             "title": title,
             "name": title,
-            "category": str(event.get("category") or event.get("type") or "unknown").lower(),
+            "category": category,
             "severity": severity,
             "priority": severity,
-            "risk_score": item.get("risk_score") or risk.get("score") or 0,
+            "risk_score": self._safe_int(item.get("risk_score") or risk.get("score"), 0),
             "source": source_engine,
             "source_engine": source_engine,
             "engine": source_engine,
@@ -102,7 +325,8 @@ class DetectionsAggregator:
             "rule_id": event.get("id"),
             "description": title,
             "summary": title,
-            "theme": "network" if "network" in str(event.get("category")).lower() else "generic",
+            "theme": theme,
+            "status": "open",
             "raw": raw,
         }
 
@@ -115,12 +339,14 @@ class DetectionsAggregator:
         if not timestamp:
             return False
 
-        severity = str(item.get("severity") or "").lower()
-        category = str(item.get("category") or "").lower()
-        title = str(item.get("title") or "").lower()
-        source_engine = str(item.get("source_engine") or "").lower()
+        severity = str(item.get("severity") or "").strip().lower()
+        category = str(item.get("category") or "").strip().lower()
+        title = str(item.get("title") or "").strip().lower()
+        source_engine = str(
+            item.get("source_engine") or item.get("engine") or item.get("source") or ""
+        ).strip().lower()
 
-        # ❌ bruit Suricata pur
+        # bruit Suricata faible valeur
         if source_engine == "suricata":
             if severity in {"info", ""} and category in {
                 "network_flow",
@@ -135,13 +361,16 @@ class DetectionsAggregator:
             if title in {"event", "flow", "dns", "tls", "http"}:
                 return False
 
-        # ❌ détection vide
-        if not any([
-            item.get("title"),
-            item.get("category"),
-            item.get("severity"),
-            item.get("asset_name"),
-        ]):
+        if not any(
+            [
+                item.get("title"),
+                item.get("category"),
+                item.get("severity"),
+                item.get("asset_name"),
+                item.get("src_ip"),
+                item.get("dest_ip"),
+            ]
+        ):
             return False
 
         return True
@@ -150,16 +379,20 @@ class DetectionsAggregator:
     # PUBLIC API
     # ==========================================================
 
-    def list_detections(self, limit: int = 200) -> list[dict[str, Any]]:
+    def list_detections(self, limit: int = 50) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
 
         for provider in self.providers:
             provider_name = getattr(provider, "name", provider.__class__.__name__)
 
             try:
-                provider_items = provider.list_detections(limit=limit)
+                provider_items = provider.fetch(limit=limit)
             except Exception as exc:
-                logger.warning("Provider %s en erreur: %s", provider_name, exc)
+                logger.exception(
+                    "Erreur lors de la récupération des détections pour le provider %s: %s",
+                    provider_name,
+                    exc,
+                )
                 continue
 
             if not isinstance(provider_items, list):
@@ -186,7 +419,19 @@ class DetectionsAggregator:
                 dropped_count,
             )
 
-        # tri temporel
+        if USE_TEST_DETECTIONS:
+            test_items = self._get_test_detections()
+            valid_test_items = [
+                item
+                for item in test_items
+                if self._normalize_item(item) is not None and self._is_valid_detection(item)
+            ]
+            items.extend(valid_test_items)
+            logger.info(
+                "Mode test activé -> %s détection(s) de test injectée(s)",
+                len(valid_test_items),
+            )
+
         items.sort(
             key=lambda x: str(
                 x.get("timestamp")

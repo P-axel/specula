@@ -12,8 +12,8 @@ class UnifiedCorrelator:
 
     Objectif :
     - ne garder que les signaux éligibles à un incident SOC
-    - regrouper les signaux proches sur le même actif
-    - produire des incidents lisibles et exploitables
+    - regrouper les signaux proches selon plusieurs dimensions
+    - produire des incidents lisibles, priorisés et exploitables
     """
 
     def __init__(self, window_minutes: int = 30) -> None:
@@ -55,15 +55,80 @@ class UnifiedCorrelator:
     def _normalize_text_lower(self, value: Any) -> str:
         return self._normalize_text(value).lower()
 
+    def _dedupe_list(self, values: list[Any]) -> list[str]:
+        seen: set[str] = set()
+        result: list[str] = []
+
+        for value in values:
+            normalized = self._normalize_text(value)
+            if not normalized:
+                continue
+            lowered = normalized.lower()
+            if lowered in seen:
+                continue
+            seen.add(lowered)
+            result.append(normalized)
+
+        return result
+
+    def _first_non_empty(self, bucket: list[dict[str, Any]], *fields: str) -> str | None:
+        for item in bucket:
+            for field in fields:
+                value = self._normalize_text(item.get(field))
+                if value:
+                    return value
+        return None
+
     def _asset_key(self, item: dict[str, Any]) -> str:
-        return str(
+        return self._normalize_text_lower(
             item.get("asset_id")
             or item.get("asset_name")
             or item.get("hostname")
+            or item.get("agent_name")
+            or item.get("host")
             or item.get("dest_ip")
             or item.get("src_ip")
             or "unknown"
-        ).strip().lower()
+        )
+
+    def _primary_asset_name(self, bucket: list[dict[str, Any]], fallback: str) -> str:
+        return (
+            self._first_non_empty(
+                bucket,
+                "asset_name",
+                "hostname",
+                "agent_name",
+                "host",
+                "asset_id",
+            )
+            or fallback
+        )
+
+    def _primary_hostname(self, bucket: list[dict[str, Any]], fallback: str | None = None) -> str | None:
+        return self._first_non_empty(
+            bucket,
+            "hostname",
+            "host",
+            "asset_name",
+            "agent_name",
+            "asset_id",
+        ) or fallback
+
+    def _primary_agent_name(self, bucket: list[dict[str, Any]], fallback: str | None = None) -> str | None:
+        return self._first_non_empty(
+            bucket,
+            "agent_name",
+            "hostname",
+            "host",
+            "asset_name",
+            "asset_id",
+        ) or fallback
+
+    def _primary_agent_id(self, bucket: list[dict[str, Any]]) -> str | None:
+        return self._first_non_empty(bucket, "agent_id", "asset_id")
+
+    def _primary_ip(self, bucket: list[dict[str, Any]], field: str) -> str | None:
+        return self._first_non_empty(bucket, field)
 
     def _severity_rank(self, value: Any) -> int:
         normalized = self._normalize_text_lower(value)
@@ -111,8 +176,15 @@ class UnifiedCorrelator:
             for item in bucket
             if item.get("theme")
         }
+        engines = {
+            self._normalize_text_lower(
+                item.get("source_engine") or item.get("engine") or item.get("provider")
+            )
+            for item in bucket
+            if item.get("source_engine") or item.get("engine") or item.get("provider")
+        }
 
-        haystack = " ".join(sorted(categories | themes))
+        haystack = " ".join(sorted(categories | themes | engines))
 
         if any(token in haystack for token in ["network", "dns", "tls", "http", "scan", "suricata"]):
             return "network"
@@ -120,7 +192,10 @@ class UnifiedCorrelator:
             return "identity"
         if "vulnerability" in haystack or "cve" in haystack:
             return "vulnerability"
-        if any(token in haystack for token in ["malware", "rootcheck", "process", "host", "system", "fim"]):
+        if any(
+            token in haystack
+            for token in ["malware", "rootcheck", "process", "host", "system", "fim", "wazuh"]
+        ):
             return "system"
 
         return "generic"
@@ -141,9 +216,20 @@ class UnifiedCorrelator:
             0: 0,
         }.get(max_severity, 0)
 
-        volume_bonus = min(max(len(bucket) - 1, 0) * 3, 15)
+        volume_bonus = min(max(len(bucket) - 1, 0) * 4, 20)
 
-        return min(100, max_score + severity_bonus + volume_bonus)
+        diversity_sources = len(
+            {
+                self._normalize_text_lower(
+                    item.get("source_engine") or item.get("engine") or item.get("provider")
+                )
+                for item in bucket
+                if item.get("source_engine") or item.get("engine") or item.get("provider")
+            }
+        )
+        diversity_bonus = min(max(diversity_sources - 1, 0) * 5, 10)
+
+        return min(100, max_score + severity_bonus + volume_bonus + diversity_bonus)
 
     def _priority_from_score(self, score: int) -> str:
         if score >= 80:
@@ -170,7 +256,9 @@ class UnifiedCorrelator:
         counts: dict[str, int] = {}
 
         for item in bucket:
-            user_name = self._normalize_text(item.get("user_name"))
+            user_name = self._normalize_text(
+                item.get("user_name") or item.get("user") or item.get("username")
+            )
             if not user_name:
                 continue
             counts[user_name] = counts.get(user_name, 0) + 1
@@ -180,11 +268,34 @@ class UnifiedCorrelator:
 
         return max(counts.items(), key=lambda x: x[1])[0]
 
+    def _normalize_process_display(self, value: Any) -> str | None:
+        process_name = self._normalize_text(value)
+        if not process_name:
+            return None
+
+        lowered = process_name.lower()
+
+        aliases = {
+            "nc": "NC",
+            "cmd": "CMD",
+            "sh": "SH",
+            "bash": "BASH",
+            "pwsh": "PWSH",
+            "powershell": "PowerShell",
+        }
+
+        if lowered in aliases:
+            return aliases[lowered]
+
+        return process_name
+
     def _main_process(self, bucket: list[dict[str, Any]]) -> str | None:
         counts: dict[str, int] = {}
 
         for item in bucket:
-            process_name = self._normalize_text(item.get("process_name"))
+            process_name = self._normalize_process_display(
+                item.get("process_name") or item.get("process")
+            )
             if not process_name:
                 continue
             counts[process_name] = counts.get(process_name, 0) + 1
@@ -194,6 +305,27 @@ class UnifiedCorrelator:
 
         return max(counts.items(), key=lambda x: x[1])[0]
 
+    def _main_category(self, bucket: list[dict[str, Any]]) -> str | None:
+        counts: dict[str, int] = {}
+
+        for item in bucket:
+            category = self._normalize_text(item.get("category"))
+            if not category:
+                continue
+            counts[category] = counts.get(category, 0) + 1
+
+        if not counts:
+            return None
+
+        return max(counts.items(), key=lambda x: x[1])[0]
+
+    def _main_kind(self, bucket: list[dict[str, Any]], domain: str) -> str:
+        for item in bucket:
+            kind = self._normalize_text_lower(item.get("kind"))
+            if kind:
+                return kind
+        return domain if domain != "generic" else "correlated"
+
     def _build_title(
         self,
         bucket: list[dict[str, Any]],
@@ -201,7 +333,7 @@ class UnifiedCorrelator:
         asset_name: str,
         domain: str,
     ) -> str:
-        title = self._normalize_text(dominant.get("title"))
+        title = self._normalize_text(dominant.get("title") or dominant.get("name"))
         category = self._normalize_text_lower(dominant.get("category"))
 
         if domain == "network":
@@ -248,28 +380,16 @@ class UnifiedCorrelator:
         count = len(bucket)
 
         if domain == "network":
-            return (
-                f"{count} signal(s) réseau corrélés sur {asset_name} "
-                f"entre {first_ts} et {last_ts}."
-            )
+            return f"{count} signal(s) réseau corrélés sur {asset_name} entre {first_ts} et {last_ts}."
 
         if domain == "system":
-            return (
-                f"{count} signal(s) système corrélés sur {asset_name} "
-                f"entre {first_ts} et {last_ts}."
-            )
+            return f"{count} signal(s) système corrélés sur {asset_name} entre {first_ts} et {last_ts}."
 
         if domain == "identity":
-            return (
-                f"{count} signal(s) liés à l’identité corrélés sur {asset_name} "
-                f"entre {first_ts} et {last_ts}."
-            )
+            return f"{count} signal(s) liés à l’identité corrélés sur {asset_name} entre {first_ts} et {last_ts}."
 
         if domain == "vulnerability":
-            return (
-                f"{count} signal(s) de vulnérabilité corrélés sur {asset_name} "
-                f"entre {first_ts} et {last_ts}."
-            )
+            return f"{count} signal(s) de vulnérabilité corrélés sur {asset_name} entre {first_ts} et {last_ts}."
 
         return f"{count} signal(s) corrélés sur {asset_name} entre {first_ts} et {last_ts}."
 
@@ -300,7 +420,9 @@ class UnifiedCorrelator:
 
         return "La corrélation de plusieurs signaux justifie une investigation analyste."
 
-    def _build_recommended_actions(self, bucket: list[dict[str, Any]], domain: str) -> list[str]:
+    def _build_recommended_actions(
+        self, bucket: list[dict[str, Any]], domain: str
+    ) -> list[str]:
         if domain == "network":
             return [
                 "Vérifier la légitimité de la source et de la destination",
@@ -339,22 +461,172 @@ class UnifiedCorrelator:
         return {
             "id": item.get("id"),
             "timestamp": item.get("timestamp"),
-            "title": item.get("title"),
+            "title": item.get("title") or item.get("name"),
             "category": item.get("category"),
+            "theme": item.get("theme"),
             "severity": item.get("severity"),
             "priority": item.get("priority"),
             "risk_score": item.get("risk_score"),
-            "source_engine": item.get("source_engine") or item.get("engine"),
+            "source_engine": item.get("source_engine") or item.get("engine") or item.get("provider"),
             "asset_name": item.get("asset_name"),
             "hostname": item.get("hostname"),
+            "agent_name": item.get("agent_name"),
+            "agent_id": item.get("agent_id"),
             "src_ip": item.get("src_ip"),
             "dest_ip": item.get("dest_ip"),
-            "user_name": item.get("user_name"),
-            "process_name": item.get("process_name"),
+            "user_name": item.get("user_name") or item.get("user"),
+            "process_name": self._normalize_process_display(
+                item.get("process_name") or item.get("process")
+            ),
             "rule_id": item.get("rule_id"),
             "description": item.get("description"),
             "summary": item.get("summary"),
         }
+
+    def _timeline_entry(self, item: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "timestamp": item.get("timestamp"),
+            "title": item.get("title") or item.get("name") or "Signal",
+            "category": item.get("category"),
+            "severity": item.get("severity") or item.get("priority"),
+            "source_engine": item.get("source_engine") or item.get("engine") or item.get("provider"),
+            "user_name": item.get("user_name") or item.get("user"),
+            "process_name": self._normalize_process_display(
+                item.get("process_name") or item.get("process")
+            ),
+            "src_ip": item.get("src_ip"),
+            "dest_ip": item.get("dest_ip"),
+        }
+
+    def _collect_engines(self, bucket: list[dict[str, Any]]) -> list[str]:
+        return self._dedupe_list(
+            [
+                item.get("source_engine") or item.get("engine") or item.get("provider")
+                for item in bucket
+            ]
+        )
+
+    def _collect_themes(self, bucket: list[dict[str, Any]]) -> list[str]:
+        return self._dedupe_list([item.get("theme") for item in bucket])
+
+    def _collect_categories(self, bucket: list[dict[str, Any]]) -> list[str]:
+        return self._dedupe_list([item.get("category") for item in bucket])
+
+    def _collect_cves(self, bucket: list[dict[str, Any]]) -> list[str]:
+        cves: list[str] = []
+
+        for item in bucket:
+            value = item.get("cves") or item.get("cve") or []
+            if isinstance(value, list):
+                cves.extend([self._normalize_text(x) for x in value if self._normalize_text(x)])
+            else:
+                single = self._normalize_text(value)
+                if single:
+                    cves.append(single)
+
+        return self._dedupe_list(cves)
+
+    def _collect_mitre(self, bucket: list[dict[str, Any]]) -> list[str]:
+        techniques: list[str] = []
+
+        for item in bucket:
+            value = item.get("mitre_techniques") or item.get("mitre") or []
+            if isinstance(value, list):
+                techniques.extend([self._normalize_text(x) for x in value if self._normalize_text(x)])
+            else:
+                single = self._normalize_text(value)
+                if single:
+                    techniques.append(single)
+
+        return self._dedupe_list(techniques)
+
+    def _same_context(self, current: dict[str, Any], reference: dict[str, Any]) -> bool:
+        strong_pairs = [
+            (
+                self._normalize_text_lower(current.get("user_name") or current.get("user")),
+                self._normalize_text_lower(reference.get("user_name") or reference.get("user")),
+            ),
+            (
+                self._normalize_text_lower(current.get("process_name") or current.get("process")),
+                self._normalize_text_lower(reference.get("process_name") or reference.get("process")),
+            ),
+            (
+                self._normalize_text_lower(current.get("rule_id")),
+                self._normalize_text_lower(reference.get("rule_id")),
+            ),
+            (
+                self._normalize_text_lower(current.get("src_ip")),
+                self._normalize_text_lower(reference.get("src_ip")),
+            ),
+            (
+                self._normalize_text_lower(current.get("dest_ip")),
+                self._normalize_text_lower(reference.get("dest_ip")),
+            ),
+        ]
+
+        weak_pairs = [
+            (
+                self._normalize_text_lower(current.get("category")),
+                self._normalize_text_lower(reference.get("category")),
+            ),
+            (
+                self._normalize_text_lower(current.get("theme")),
+                self._normalize_text_lower(reference.get("theme")),
+            ),
+            (
+                self._normalize_text_lower(
+                    current.get("source_engine") or current.get("engine") or current.get("provider")
+                ),
+                self._normalize_text_lower(
+                    reference.get("source_engine") or reference.get("engine") or reference.get("provider")
+                ),
+            ),
+        ]
+
+        strong_matches = sum(1 for left, right in strong_pairs if left and left == right)
+        weak_matches = sum(1 for left, right in weak_pairs if left and left == right)
+
+        return strong_matches >= 1 or (strong_matches + weak_matches) >= 2
+
+    def _dedupe_timeline(self, entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        seen: set[tuple[str, str, str, str, str, str]] = set()
+        result: list[dict[str, Any]] = []
+
+        for entry in entries:
+            key = (
+                self._normalize_text(entry.get("timestamp")),
+                self._normalize_text_lower(entry.get("title")),
+                self._normalize_text_lower(entry.get("category")),
+                self._normalize_text_lower(entry.get("source_engine")),
+                self._normalize_text_lower(entry.get("user_name")),
+                self._normalize_text_lower(entry.get("process_name")),
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            result.append(entry)
+
+        return result
+
+    def _dedupe_signals(self, signals: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        seen: set[tuple[str, str, str, str, str, str]] = set()
+        result: list[dict[str, Any]] = []
+
+        for signal in signals:
+            key = (
+                self._normalize_text(signal.get("id")),
+                self._normalize_text(signal.get("timestamp")),
+                self._normalize_text_lower(signal.get("title")),
+                self._normalize_text_lower(signal.get("category")),
+                self._normalize_text_lower(signal.get("user_name")),
+                self._normalize_text_lower(signal.get("process_name")),
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            result.append(signal)
+
+        return result
 
     def correlate(self, detections: list[dict[str, Any]]) -> list[dict[str, Any]]:
         filtered: list[dict[str, Any]] = []
@@ -367,14 +639,13 @@ class UnifiedCorrelator:
             if not timestamp:
                 continue
 
-            # Filtre métier SOC
             if not is_incident_candidate(item):
                 continue
 
-            # garde-fou minimal
             if not any(
                 [
                     item.get("title"),
+                    item.get("name"),
                     item.get("category"),
                     item.get("severity"),
                     item.get("asset_name"),
@@ -411,28 +682,15 @@ class UnifiedCorrelator:
                 placed = False
 
                 for bucket in buckets:
-                    last_dt = self._parse_dt(bucket[-1].get("timestamp")) or datetime.min.replace(
+                    reference = bucket[-1]
+                    last_dt = self._parse_dt(reference.get("timestamp")) or datetime.min.replace(
                         tzinfo=timezone.utc
                     )
 
-                    same_category = (
-                        self._normalize_text_lower(item.get("category"))
-                        == self._normalize_text_lower(bucket[-1].get("category"))
-                    )
-                    same_user = (
-                        self._normalize_text_lower(item.get("user_name"))
-                        and self._normalize_text_lower(item.get("user_name"))
-                        == self._normalize_text_lower(bucket[-1].get("user_name"))
-                    )
-                    same_process = (
-                        self._normalize_text_lower(item.get("process_name"))
-                        and self._normalize_text_lower(item.get("process_name"))
-                        == self._normalize_text_lower(bucket[-1].get("process_name"))
-                    )
-
                     close_in_time = abs(item_dt - last_dt) <= timedelta(minutes=self.window_minutes)
+                    same_context = self._same_context(item, reference)
 
-                    if close_in_time and (same_category or same_user or same_process):
+                    if close_in_time and same_context:
                         bucket.append(item)
                         placed = True
                         break
@@ -444,16 +702,43 @@ class UnifiedCorrelator:
                 dominant = self._dominant_signal(bucket)
                 first_ts = bucket[0].get("timestamp")
                 last_ts = bucket[-1].get("timestamp")
-                asset_name = self._normalize_text(bucket[0].get("asset_name")) or asset_key
+                asset_name = self._primary_asset_name(bucket, fallback=asset_key)
+                hostname = self._primary_hostname(bucket, fallback=asset_name)
+                agent_name = self._primary_agent_name(bucket, fallback=hostname or asset_name)
+                agent_id = self._primary_agent_id(bucket)
                 domain = self._incident_domain(bucket)
                 risk_score = self._compute_risk_score(bucket)
                 priority = self._priority_from_score(risk_score)
                 confidence = self._compute_confidence(bucket)
+                engines = self._collect_engines(bucket)
+                themes = self._collect_themes(bucket)
+                categories = self._collect_categories(bucket)
+                cves = self._collect_cves(bucket)
+                mitre = self._collect_mitre(bucket)
+                user_name = self._main_user(bucket)
+                process_name = self._main_process(bucket)
+                dominant_engine = (
+                    dominant.get("source_engine")
+                    or dominant.get("engine")
+                    or dominant.get("provider")
+                    or (engines[0] if engines else None)
+                )
+                src_ip = dominant.get("src_ip") or self._primary_ip(bucket, "src_ip")
+                dest_ip = dominant.get("dest_ip") or self._primary_ip(bucket, "dest_ip")
+
+                signals = self._dedupe_signals([self._compact_signal(x) for x in bucket])
+                timeline = self._dedupe_timeline([self._timeline_entry(x) for x in bucket])
 
                 incidents.append(
                     {
                         "id": f"incident:{asset_key}:{first_ts}:{len(bucket)}",
                         "title": self._build_title(
+                            bucket=bucket,
+                            dominant=dominant,
+                            asset_name=asset_name,
+                            domain=domain,
+                        ),
+                        "name": self._build_title(
                             bucket=bucket,
                             dominant=dominant,
                             asset_name=asset_name,
@@ -467,10 +752,13 @@ class UnifiedCorrelator:
                             domain=domain,
                         ),
                         "incident_domain": domain,
+                        "kind": self._main_kind(bucket, domain),
                         "type": "incident",
                         "status": "open",
                         "asset_name": asset_name,
-                        "hostname": bucket[0].get("hostname"),
+                        "hostname": hostname,
+                        "agent_name": agent_name,
+                        "agent_id": agent_id,
                         "timestamp": first_ts,
                         "created_at": first_ts,
                         "updated_at": last_ts,
@@ -480,16 +768,26 @@ class UnifiedCorrelator:
                         "priority": priority,
                         "severity": priority,
                         "confidence": confidence,
-                        "signals_count": len(bucket),
-                        "signals": [self._compact_signal(x) for x in bucket],
-                        "source": "specula",
+                        "detections_count": len(signals),
+                        "signals_count": len(signals),
+                        "signals": signals,
+                        "timeline": timeline,
+                        "source": "correlated",
                         "why_it_matters": self._build_why_it_matters(bucket, domain),
                         "recommended_actions": self._build_recommended_actions(bucket, domain),
-                        "dominant_signal_title": dominant.get("title"),
+                        "dominant_signal_title": dominant.get("title") or dominant.get("name"),
                         "dominant_category": dominant.get("category"),
-                        "dominant_engine": dominant.get("source_engine") or dominant.get("engine"),
-                        "user_name": self._main_user(bucket),
-                        "process_name": self._main_process(bucket),
+                        "dominant_engine": dominant_engine,
+                        "engines": [x.lower() for x in engines],
+                        "themes": [x.lower() for x in themes],
+                        "categories": [x.lower() for x in categories],
+                        "category": self._main_category(bucket),
+                        "user_name": user_name,
+                        "process_name": process_name,
+                        "src_ip": src_ip,
+                        "dest_ip": dest_ip,
+                        "cves": cves,
+                        "mitre_techniques": mitre,
                     }
                 )
 
