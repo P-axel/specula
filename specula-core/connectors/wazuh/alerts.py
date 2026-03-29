@@ -24,17 +24,21 @@ class WazuhAlertsConnector:
                 try:
                     level = int(q.split(">=")[1].strip())
                     must.append({"range": {"rule.level": {"gte": level}}})
-                except ValueError:
+                except (IndexError, ValueError):
                     must.append({"query_string": {"query": q}})
             else:
                 must.append({"query_string": {"query": q}})
 
-        sort_clause: List[Any] = [{"@timestamp": {"order": "desc"}}]
+        sort_clause: List[Dict[str, Any]] = [{"@timestamp": {"order": "desc"}}]
 
         if sort:
             try:
-                field, order = sort.split(":")
-                sort_clause = [{field.strip(): {"order": order.strip()}}]
+                field, order = sort.split(":", 1)
+                field = field.strip()
+                order = order.strip().lower()
+
+                if field and order in {"asc", "desc"}:
+                    sort_clause = [{field: {"order": order}}]
             except ValueError:
                 pass
 

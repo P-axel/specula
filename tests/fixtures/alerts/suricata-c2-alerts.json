@@ -1,0 +1,256 @@
+[
+  {
+    "timestamp": "2026-03-29T09:14:22Z",
+    "event": {
+      "id": "suricata-alert-001",
+      "kind": "alert",
+      "category": "malware",
+      "type": "alert",
+      "dataset": "suricata",
+      "module": "http",
+      "provider": "suricata",
+      "severity": "high",
+      "title": "Possible C2 over HTTP"
+    },
+    "observer": {
+      "vendor": "OISF",
+      "product": "Suricata",
+      "type": "ids"
+    },
+    "source": {
+      "ip": "192.168.1.45",
+      "port": 49822
+    },
+    "destination": {
+      "ip": "198.51.100.24",
+      "port": 80
+    },
+    "network": {
+      "transport": "tcp",
+      "protocol": "http",
+      "application": "http",
+      "type": "ipv4"
+    },
+    "risk": {
+      "level": "high",
+      "score": 78
+    },
+    "tags": [
+      "suricata",
+      "network",
+      "http",
+      "c2"
+    ],
+    "raw": {
+      "timestamp": "2026-03-29T09:14:22Z",
+      "event_type": "alert",
+      "src_ip": "192.168.1.45",
+      "src_port": 49822,
+      "dest_ip": "198.51.100.24",
+      "dest_port": 80,
+      "proto": "TCP",
+      "app_proto": "http",
+      "alert": {
+        "signature_id": 210001,
+        "signature": "Possible C2 over HTTP",
+        "category": "A Network Trojan was detected",
+        "severity": 2
+      },
+      "http": {
+        "hostname": "update-check.example-ddns.net",
+        "url": "/api/ping",
+        "http_method": "POST",
+        "user_agent": "curl/8.0"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-03-29T09:16:01Z",
+    "event": {
+      "id": "suricata-alert-002",
+      "kind": "alert",
+      "category": "malware",
+      "type": "alert",
+      "dataset": "suricata",
+      "module": "tls",
+      "provider": "suricata",
+      "severity": "high",
+      "title": "Beaconing pattern detected"
+    },
+    "observer": {
+      "vendor": "OISF",
+      "product": "Suricata",
+      "type": "ids"
+    },
+    "source": {
+      "ip": "192.168.1.45",
+      "port": 49840
+    },
+    "destination": {
+      "ip": "198.51.100.24",
+      "port": 443
+    },
+    "network": {
+      "transport": "tcp",
+      "protocol": "tls",
+      "application": "tls",
+      "type": "ipv4"
+    },
+    "risk": {
+      "level": "high",
+      "score": 81
+    },
+    "tags": [
+      "suricata",
+      "network",
+      "tls",
+      "beaconing"
+    ],
+    "raw": {
+      "timestamp": "2026-03-29T09:16:01Z",
+      "event_type": "alert",
+      "src_ip": "192.168.1.45",
+      "src_port": 49840,
+      "dest_ip": "198.51.100.24",
+      "dest_port": 443,
+      "proto": "TCP",
+      "app_proto": "tls",
+      "alert": {
+        "signature_id": 210002,
+        "signature": "Beaconing pattern detected",
+        "category": "Potentially Bad Traffic",
+        "severity": 2
+      },
+      "tls": {
+        "sni": "edge-node.example-ddns.net",
+        "version": "TLS 1.2"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-03-29T09:17:34Z",
+    "event": {
+      "id": "suricata-alert-003",
+      "kind": "alert",
+      "category": "tls_anomaly",
+      "type": "alert",
+      "dataset": "suricata",
+      "module": "tls",
+      "provider": "suricata",
+      "severity": "medium",
+      "title": "Suspicious TLS SNI observed"
+    },
+    "observer": {
+      "vendor": "OISF",
+      "product": "Suricata",
+      "type": "ids"
+    },
+    "source": {
+      "ip": "192.168.1.45",
+      "port": 49861
+    },
+    "destination": {
+      "ip": "198.51.100.24",
+      "port": 443
+    },
+    "network": {
+      "transport": "tcp",
+      "protocol": "tls",
+      "application": "tls",
+      "type": "ipv4"
+    },
+    "risk": {
+      "level": "medium",
+      "score": 63
+    },
+    "tags": [
+      "suricata",
+      "network",
+      "tls",
+      "sni"
+    ],
+    "raw": {
+      "timestamp": "2026-03-29T09:17:34Z",
+      "event_type": "alert",
+      "src_ip": "192.168.1.45",
+      "src_port": 49861,
+      "dest_ip": "198.51.100.24",
+      "dest_port": 443,
+      "proto": "TCP",
+      "app_proto": "tls",
+      "alert": {
+        "signature_id": 210003,
+        "signature": "Suspicious TLS SNI observed",
+        "category": "Potential Corporate Privacy Violation",
+        "severity": 3
+      },
+      "tls": {
+        "sni": "api-control.duckdns.org",
+        "version": "TLS 1.3"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-03-29T09:19:10Z",
+    "event": {
+      "id": "suricata-alert-004",
+      "kind": "alert",
+      "category": "dns_anomaly",
+      "type": "alert",
+      "dataset": "suricata",
+      "module": "dns",
+      "provider": "suricata",
+      "severity": "medium",
+      "title": "DNS query to suspicious dynamic domain"
+    },
+    "observer": {
+      "vendor": "OISF",
+      "product": "Suricata",
+      "type": "ids"
+    },
+    "source": {
+      "ip": "192.168.1.45",
+      "port": 53312
+    },
+    "destination": {
+      "ip": "192.168.1.254",
+      "port": 53
+    },
+    "network": {
+      "transport": "udp",
+      "protocol": "dns",
+      "application": "dns",
+      "type": "ipv4"
+    },
+    "risk": {
+      "level": "medium",
+      "score": 59
+    },
+    "tags": [
+      "suricata",
+      "network",
+      "dns",
+      "dynamic-dns"
+    ],
+    "raw": {
+      "timestamp": "2026-03-29T09:19:10Z",
+      "event_type": "alert",
+      "src_ip": "192.168.1.45",
+      "src_port": 53312,
+      "dest_ip": "192.168.1.254",
+      "dest_port": 53,
+      "proto": "UDP",
+      "app_proto": "dns",
+      "alert": {
+        "signature_id": 210004,
+        "signature": "DNS query to suspicious dynamic domain",
+        "category": "Potentially Bad Traffic",
+        "severity": 3
+      },
+      "dns": {
+        "rrname": "api-control.duckdns.org",
+        "rcode": "NOERROR"
+      }
+    }
+  }
+]

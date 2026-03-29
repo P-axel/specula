@@ -62,7 +62,7 @@ class SuricataEveConnector:
         normalized_event_types = set(event_types or [])
 
         with self.eve_path.open("r", encoding="utf-8", errors="replace") as handle:
-            for line_number, raw_line in enumerate(handle, start=1):
+            for _, raw_line in enumerate(handle, start=1):
                 line = raw_line.strip()
                 if not line:
                     continue

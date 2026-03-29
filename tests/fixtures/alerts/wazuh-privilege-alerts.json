@@ -1,0 +1,97 @@
+[
+  {
+    "id": "wazuh-alert-201",
+    "timestamp": "2026-03-29T02:11:03Z",
+    "agent": {
+      "id": "001",
+      "name": "app-server-01",
+      "ip": "10.10.10.12"
+    },
+    "rule": {
+      "id": "5402",
+      "level": 10,
+      "description": "Successful sudo to root executed",
+      "groups": [
+        "syslog",
+        "sudo"
+      ]
+    },
+    "data": {
+      "srcuser": "deploy",
+      "dstuser": "root",
+      "command": "/usr/bin/sudo /usr/sbin/useradd tempops"
+    },
+    "full_log": "deploy : TTY=pts/0 ; PWD=/home/deploy ; USER=root ; COMMAND=/usr/sbin/useradd tempops"
+  },
+  {
+    "id": "wazuh-alert-202",
+    "timestamp": "2026-03-29T02:12:18Z",
+    "agent": {
+      "id": "001",
+      "name": "app-server-01",
+      "ip": "10.10.10.12"
+    },
+    "rule": {
+      "id": "61122",
+      "level": 11,
+      "description": "Sensitive administrative command executed",
+      "groups": [
+        "process",
+        "audit"
+      ]
+    },
+    "data": {
+      "srcuser": "root",
+      "process": "useradd",
+      "command": "useradd tempops"
+    },
+    "full_log": "root executed useradd tempops"
+  },
+  {
+    "id": "wazuh-alert-203",
+    "timestamp": "2026-03-29T02:15:07Z",
+    "agent": {
+      "id": "001",
+      "name": "app-server-01",
+      "ip": "10.10.10.12"
+    },
+    "rule": {
+      "id": "550",
+      "level": 11,
+      "description": "Integrity checksum changed",
+      "groups": [
+        "syscheck",
+        "fim"
+      ]
+    },
+    "data": {
+      "file": "/etc/sudoers",
+      "process": "vim",
+      "dstuser": "root"
+    },
+    "full_log": "File '/etc/sudoers' checksum changed"
+  },
+  {
+    "id": "wazuh-alert-204",
+    "timestamp": "2026-03-29T02:17:42Z",
+    "agent": {
+      "id": "001",
+      "name": "app-server-01",
+      "ip": "10.10.10.12"
+    },
+    "rule": {
+      "id": "5710",
+      "level": 7,
+      "description": "sshd: authentication success",
+      "groups": [
+        "authentication_success",
+        "sshd"
+      ]
+    },
+    "data": {
+      "srcuser": "root"
+    },
+    "srcip": "203.0.113.44",
+    "full_log": "Accepted password for root from 203.0.113.44 port 51822 ssh2"
+  }
+]

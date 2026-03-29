@@ -21,20 +21,27 @@ import IncidentListItem from "../components/IncidentListItem";
 import IncidentDetailPanel from "../components/IncidentDetailPanel";
 
 export default function IncidentsPage() {
-  const { incidentsRaw, alertsRaw, refreshing, refreshSocData, error } =
-    useSocData();
+  const {
+    incidentsRaw = [],
+    alertsRaw = [],
+    refreshing,
+    refreshSocData,
+    error,
+  } = useSocData();
 
   const [selectedIncident, setSelectedIncident] = useState(null);
   const [filters, setFilters] = useState({ ...DEFAULT_INCIDENT_FILTERS });
 
   const incidentsData = useMemo(() => {
-    return incidentsRaw.map((incident, index) =>
+    return (Array.isArray(incidentsRaw) ? incidentsRaw : []).map((incident, index) =>
       normalizeIncidentItem(incident, index)
     );
   }, [incidentsRaw]);
 
   const normalizedAlerts = useMemo(() => {
-    return alertsRaw.map((alert, index) => normalizeAlertItem(alert, index));
+    return (Array.isArray(alertsRaw) ? alertsRaw : []).map((alert, index) =>
+      normalizeAlertItem(alert, index)
+    );
   }, [alertsRaw]);
 
   const highPriorityCount = useMemo(() => {
@@ -48,7 +55,7 @@ export default function IncidentsPage() {
     return incidentsData.filter(
       (incident) =>
         incident.kind === "vulnerability" ||
-        (incident.cves && incident.cves.length > 0)
+        (Array.isArray(incident.cves) && incident.cves.length > 0)
     ).length;
   }, [incidentsData]);
 
@@ -111,7 +118,11 @@ export default function IncidentsPage() {
   const handleResetFilters = () => {
     setFilters({ ...DEFAULT_INCIDENT_FILTERS });
   };
-
+console.log("incidentsRaw", incidentsRaw);
+console.log("incidentsData", incidentsData);
+console.log("filters", filters);
+console.log("filteredIncidents", filteredIncidents);
+console.log("selectedIncident", selectedIncident);
   return (
     <div className="page incidents-page">
       <PageHero
@@ -169,7 +180,7 @@ export default function IncidentsPage() {
               <div className="incident-list">
                 {filteredIncidents.map((incident, index) => (
                   <IncidentListItem
-                    key={incident.id || `${incident.title}-${index}`}
+                    key={incident.id || `${incident.title || "incident"}-${index}`}
                     incident={incident}
                     isSelected={selectedIncident?.id === incident.id}
                     onSelect={setSelectedIncident}
@@ -184,8 +195,7 @@ export default function IncidentsPage() {
             right={
               selectedIncident ? (
                 <span className="incidents-section-hint">
-                  {selectedIncident.detections_count ?? linkedAlerts.length}{" "}
-                  signal(s)
+                  {selectedIncident.detections_count ?? linkedAlerts.length} signal(s)
                 </span>
               ) : null
             }

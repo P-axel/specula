@@ -30,7 +30,7 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 let memoryCache = null;
 
 function findFirstArrayDeep(payload, depth = 0) {
-  if (depth > 6 || payload == null) return [];
+  if (depth > 8 || payload == null) return [];
 
   if (Array.isArray(payload)) return payload;
   if (typeof payload !== "object") return [];
@@ -76,6 +76,23 @@ function findFirstArrayDeep(payload, depth = 0) {
 
 function extractCollection(payload) {
   return findFirstArrayDeep(payload);
+}
+
+function extractIncidentsCollection(payload) {
+  if (!payload) return [];
+
+  if (Array.isArray(payload)) return payload;
+
+  if (Array.isArray(payload?.incidents)) return payload.incidents;
+  if (Array.isArray(payload?.items)) return payload.items;
+  if (Array.isArray(payload?.results)) return payload.results;
+  if (Array.isArray(payload?.data)) return payload.data;
+
+  if (Array.isArray(payload?.data?.incidents)) return payload.data.incidents;
+  if (Array.isArray(payload?.data?.items)) return payload.data.items;
+  if (Array.isArray(payload?.data?.results)) return payload.data.results;
+
+  return extractCollection(payload);
 }
 
 function isFresh(timestamp) {
@@ -144,22 +161,22 @@ export function SocDataProvider({ children }) {
 
   const hasLoadedRef = useRef(!!initialCache);
   const isFetchingRef = useRef(false);
-  
+
   const applyAllData = useCallback((nextData) => {
     const payload = {
       ...nextData,
       timestamp: Date.now(),
     };
 
-    setIncidentsRaw(payload.incidentsRaw || []);
-    setAlertsRaw(payload.alertsRaw || []);
-    setAssetsRaw(payload.assetsRaw || []);
+    setIncidentsRaw(Array.isArray(payload.incidentsRaw) ? payload.incidentsRaw : []);
+    setAlertsRaw(Array.isArray(payload.alertsRaw) ? payload.alertsRaw : []);
+    setAssetsRaw(Array.isArray(payload.assetsRaw) ? payload.assetsRaw : []);
     setOverview(payload.overview ?? null);
     setSeverity(payload.severity ?? null);
-    setActivity(payload.activity || []);
-    setTopAssets(payload.topAssets || []);
-    setTopCategories(payload.topCategories || []);
-    setDetections(payload.detections || []);
+    setActivity(Array.isArray(payload.activity) ? payload.activity : []);
+    setTopAssets(Array.isArray(payload.topAssets) ? payload.topAssets : []);
+    setTopCategories(Array.isArray(payload.topCategories) ? payload.topCategories : []);
+    setDetections(Array.isArray(payload.detections) ? payload.detections : []);
 
     setInitialized(true);
     hasLoadedRef.current = true;
@@ -205,29 +222,38 @@ export function SocDataProvider({ children }) {
           getTopCategories(),
           getDetections(),
         ]);
-    console.log("socIncidentsResponse", socIncidentsResponse);
-console.log("alertsResponse", alertsResponse);
-console.log("detectionsResponse", detectionsResponse);
-console.log(
-  "incidents extracted",
-  Array.isArray(socIncidentsResponse)
-    ? socIncidentsResponse
-    : extractCollection(socIncidentsResponse)
-);
-    applyAllData({
-          incidentsRaw: Array.isArray(socIncidentsResponse)
-            ? socIncidentsResponse
-            : extractCollection(socIncidentsResponse),
-          alertsRaw: extractCollection(alertsResponse),
-          assetsRaw: extractCollection(assetsResponse),
+
+        const nextIncidents = extractIncidentsCollection(socIncidentsResponse);
+        const nextAlerts = extractCollection(alertsResponse);
+        const nextAssets = extractCollection(assetsResponse);
+        const nextDetections = Array.isArray(detectionsResponse)
+          ? detectionsResponse
+          : extractCollection(detectionsResponse);
+
+        console.log("socIncidentsResponse", socIncidentsResponse);
+        console.log("resolved incidentsRaw", nextIncidents);
+        console.log("detectionsResponse", detectionsResponse);
+        console.log("resolved detections fallback", nextDetections);
+
+        applyAllData({
+          incidentsRaw: nextIncidents.length ? nextIncidents : nextDetections,
+          alertsRaw: nextAlerts,
+          assetsRaw: nextAssets,
           overview: overviewResponse ?? null,
           severity: severityResponse ?? null,
-          activity: Array.isArray(activityResponse) ? activityResponse : [],
-          topAssets: Array.isArray(topAssetsResponse) ? topAssetsResponse : [],
-          topCategories: Array.isArray(topCategoriesResponse) ? topCategoriesResponse : [],
-          detections: Array.isArray(detectionsResponse) ? detectionsResponse : [],
+          activity: Array.isArray(activityResponse)
+            ? activityResponse
+            : extractCollection(activityResponse),
+          topAssets: Array.isArray(topAssetsResponse)
+            ? topAssetsResponse
+            : extractCollection(topAssetsResponse),
+          topCategories: Array.isArray(topCategoriesResponse)
+            ? topCategoriesResponse
+            : extractCollection(topCategoriesResponse),
+          detections: nextDetections,
         });
       } catch (err) {
+        console.error("loadSocData error", err);
         setError(err?.message || "Impossible de charger les données SOC.");
       } finally {
         isFetchingRef.current = false;
@@ -284,7 +310,11 @@ console.log(
     return <InitialLoadingScreen />;
   }
 
-  return <SocDataContext.Provider value={value}>{children}</SocDataContext.Provider>;
+  return (
+    <SocDataContext.Provider value={value}>
+      {children}
+    </SocDataContext.Provider>
+  );
 }
 
 export function useSocData() {

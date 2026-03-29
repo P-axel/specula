@@ -1,16 +1,17 @@
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from fastapi import APIRouter
 
 from api.dependencies import (
     alerts_service,
     assets_service,
+    detections_service,
     network_alerts_service,
     network_incidents_service,
     themes_service,
-    translated_detections_service,
-    wazuh_events_service,
+    unified_events_service,
 )
 from specula_logging.logger import get_logger
 
@@ -31,37 +32,38 @@ def _safe_parse_datetime(value: str | None) -> datetime | None:
         return None
 
 
+def _to_dict_item(item: Any) -> dict:
+    if isinstance(item, dict):
+        return item
+    if hasattr(item, "to_dict") and callable(item.to_dict):
+        return item.to_dict()
+    return {}
+
+
+def _to_dict_list(items: list[Any]) -> list[dict]:
+    return [_to_dict_item(item) for item in items]
+
+
 def _dashboard_detection_dicts() -> list[dict]:
     try:
-        translated = [
-            detection.to_dict()
-            for detection in translated_detections_service.list_translated_detections()
-        ]
-
-        if translated:
-            return translated
-
-        logger.warning("Aucune détection traduite, fallback vers /detections")
-        return alerts_service.list_business_detections(limit=100)
-
+        return _to_dict_list(detections_service.list_detections())
     except Exception as exc:
-        logger.exception(
-            "Erreur translated detections, fallback vers /detections: %s",
-            exc,
-        )
-        return alerts_service.list_business_detections(limit=100)
+        logger.exception("Erreur récupération détections dashboard: %s", exc)
+        return []
 
 
 @router.get("/dashboard/overview")
 def dashboard_overview() -> dict:
-    assets = [asset.to_dict() for asset in assets_service.list_assets()]
-    alerts = [alert.to_dict() for alert in alerts_service.list_alerts()]
+    assets = _to_dict_list(assets_service.list_assets())
+    alerts = _to_dict_list(alerts_service.list_alerts())
     detections = _dashboard_detection_dicts()
-    events = [event.to_dict() for event in wazuh_events_service.list_agent_status_events()]
+    events = _to_dict_list(unified_events_service.list_event_dicts(limit=500))
 
-    network_detections = themes_service.list_network_detections(limit=500)
-    network_alerts = network_alerts_service.list_network_alerts(limit=500)
-    network_incidents = network_incidents_service.list_network_incidents(limit=500)
+    network_detections = _to_dict_list(themes_service.list_network_detections(limit=500))
+    network_alerts = _to_dict_list(network_alerts_service.list_network_alerts(limit=500))
+    network_incidents = _to_dict_list(
+        network_incidents_service.list_network_incidents(limit=500)
+    )
 
     active_assets = [
         asset for asset in assets
@@ -121,9 +123,11 @@ def dashboard_overview() -> dict:
 
 @router.get("/dashboard/network-overview")
 def dashboard_network_overview() -> dict:
-    theme_items = themes_service.list_network_detections(limit=500)
-    alert_items = network_alerts_service.list_network_alerts(limit=500)
-    incident_items = network_incidents_service.list_network_incidents(limit=500)
+    theme_items = _to_dict_list(themes_service.list_network_detections(limit=500))
+    alert_items = _to_dict_list(network_alerts_service.list_network_alerts(limit=500))
+    incident_items = _to_dict_list(
+        network_incidents_service.list_network_incidents(limit=500)
+    )
 
     return {
         "detections_total": len(theme_items),
@@ -193,7 +197,7 @@ def dashboard_top_categories() -> list[dict]:
 
 @router.get("/dashboard/top-platforms")
 def dashboard_top_platforms() -> list[dict]:
-    assets = [asset.to_dict() for asset in assets_service.list_assets()]
+    assets = _to_dict_list(assets_service.list_assets())
     counter: Counter = Counter()
 
     for asset in assets:
@@ -208,7 +212,7 @@ def dashboard_top_platforms() -> list[dict]:
 
 @router.get("/dashboard/top-groups")
 def dashboard_top_groups() -> list[dict]:
-    assets = [asset.to_dict() for asset in assets_service.list_assets()]
+    assets = _to_dict_list(assets_service.list_assets())
     counter: Counter = Counter()
 
     for asset in assets:
@@ -229,7 +233,7 @@ def dashboard_top_groups() -> list[dict]:
 
 @router.get("/dashboard/recent-assets")
 def dashboard_recent_assets() -> list[dict]:
-    assets = [asset.to_dict() for asset in assets_service.list_assets()]
+    assets = _to_dict_list(assets_service.list_assets())
     sortable_assets: list[tuple[datetime, dict]] = []
 
     for asset in assets:
@@ -256,7 +260,7 @@ def dashboard_recent_assets() -> list[dict]:
 
 @router.get("/dashboard/watchlist-assets")
 def dashboard_watchlist_assets() -> list[dict]:
-    assets = [asset.to_dict() for asset in assets_service.list_assets()]
+    assets = _to_dict_list(assets_service.list_assets())
 
     watchlist = [
         asset for asset in assets
@@ -295,7 +299,7 @@ def dashboard_watchlist_assets() -> list[dict]:
 
 @router.get("/dashboard/telemetry-health")
 def dashboard_telemetry_health() -> dict:
-    assets = [asset.to_dict() for asset in assets_service.list_assets()]
+    assets = _to_dict_list(assets_service.list_assets())
 
     healthy = 0
     warning = 0

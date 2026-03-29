@@ -12,3 +12,6 @@ class DetectionProvider(Protocol):
 
     def list_detections(self, limit: int = 100) -> list[dict[str, Any]]:
         ...
+
+    def get_status(self) -> dict[str, Any]:
+        ...

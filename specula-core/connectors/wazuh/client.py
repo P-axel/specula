@@ -20,7 +20,7 @@ class WazuhClient:
         password: Optional[str] = None,
         verify_ssl: Optional[bool] = None,
         timeout: Optional[int] = None,
-        auth_type: str = "token",  # "token" pour Wazuh server API, "basic" pour Wazuh indexer API
+        auth_type: str = "token",  # "token" pour Wazuh API, "basic" pour l'indexer
     ) -> None:
         self.base_url = (base_url or settings.wazuh_base_url).rstrip("/")
         self.username = username or settings.wazuh_username
@@ -38,6 +38,8 @@ class WazuhClient:
             raise ValueError("WAZUH_USERNAME manquant")
         if not self.password:
             raise ValueError("WAZUH_PASSWORD manquant")
+        if self.auth_type not in {"token", "basic"}:
+            raise ValueError("auth_type doit être 'token' ou 'basic'")
 
         logger.info(
             "WazuhClient initialisé pour %s (auth_type=%s)",
@@ -47,8 +49,8 @@ class WazuhClient:
 
     def authenticate(self) -> str:
         """
-        Authentification par token pour le Wazuh server API.
-        Ne sert pas pour le Wazuh indexer API en mode basic auth.
+        Authentification par token pour l'API Wazuh.
+        Ne s'utilise pas pour l'indexer en basic auth.
         """
         if self.auth_type != "token":
             raise RuntimeError("authenticate() ne doit pas être utilisé en mode basic")
@@ -62,7 +64,7 @@ class WazuhClient:
             response = requests.post(
                 url,
                 params=params,
-                auth=(self.username, self.password),
+                auth=HTTPBasicAuth(self.username, self.password),
                 timeout=self.timeout,
                 verify=self.verify_ssl,
             )
@@ -83,9 +85,10 @@ class WazuhClient:
         return token
 
     def _ensure_token(self) -> None:
-        if self.auth_type == "token":
-            if not self.token or time.time() >= self.token_expire_at:
-                self.authenticate()
+        if self.auth_type == "token" and (
+            not self.token or time.time() >= self.token_expire_at
+        ):
+            self.authenticate()
 
     def _headers(self) -> Dict[str, str]:
         headers = {
@@ -158,20 +161,27 @@ class WazuhClient:
             logger.error("Erreur appel Wazuh sur %s: %s", url, exc)
             raise RuntimeError(f"Erreur lors de l'appel Wazuh sur {url}: {exc}") from exc
 
+    @staticmethod
+    def _parse_json_response(response: Response, endpoint: str) -> Dict[str, Any]:
+        if not response.text or not response.text.strip():
+            logger.debug("Réponse vide reçue pour %s", endpoint)
+            return {}
+
+        try:
+            return response.json()
+        except ValueError as exc:
+            logger.error("Réponse JSON invalide pour %s", endpoint)
+            raise RuntimeError(f"Réponse JSON invalide renvoyée par Wazuh pour {endpoint}") from exc
+
     def get(
         self,
         endpoint: str,
         params: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         response = self._request("GET", endpoint, params=params)
-
-        try:
-            data = response.json()
-            logger.debug("Réponse JSON Wazuh reçue pour %s", endpoint)
-            return data
-        except ValueError as exc:
-            logger.error("Réponse JSON invalide pour %s", endpoint)
-            raise RuntimeError("Réponse JSON invalide renvoyée par Wazuh") from exc
+        data = self._parse_json_response(response, endpoint)
+        logger.debug("Réponse JSON Wazuh reçue pour %s", endpoint)
+        return data
 
     def post(
         self,
@@ -180,11 +190,6 @@ class WazuhClient:
         params: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         response = self._request("POST", endpoint, params=params, json=json)
-
-        try:
-            data = response.json()
-            logger.debug("Réponse JSON Wazuh reçue pour %s", endpoint)
-            return data
-        except ValueError as exc:
-            logger.error("Réponse JSON invalide pour %s", endpoint)
-            raise RuntimeError("Réponse JSON invalide renvoyée par Wazuh") from exc
+        data = self._parse_json_response(response, endpoint)
+        logger.debug("Réponse JSON Wazuh reçue pour %s", endpoint)
+        return data

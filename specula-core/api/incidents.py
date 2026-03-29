@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from api.dependencies import alerts_service, network_incidents_service
+from api.dependencies import network_incidents_service, unified_incidents_service
 from api.utils.fixtures import load_json_fixture_list
 from config.settings import settings
 
@@ -12,7 +12,7 @@ def list_incidents(limit: int = 100) -> list[dict]:
     if settings.use_test_fixtures:
         return load_json_fixture_list("incidents")[:limit]
 
-    return alerts_service.list_incidents(limit=limit)
+    return unified_incidents_service.list_incidents(limit=limit)
 
 
 @router.get("/incidents/network")

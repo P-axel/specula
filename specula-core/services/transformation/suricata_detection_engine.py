@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from services.risk_scoring import RiskScoringService
+from services.transformation.risk_scoring import RiskScoringService
 
 
 class SuricataDetectionEngine:
