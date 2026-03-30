@@ -456,9 +456,6 @@ fi
 
 log ""
 log "[5/7] Waiting for core services..."
-log "Frontend   : ${FRONT_URL}"
-log "API docs   : ${API_URL}"
-log "API health : ${API_HEALTH_URL}"
 
 attempt=1
 until check_front && check_api_docs && check_api_health; do
@@ -496,13 +493,11 @@ else
 fi
 
 log ""
-log "[7/7] Services are ready."
+log "🌐 Specula Console : ${FRONT_URL}"
+log "📚 Specula API Docs: ${API_URL}"
+log "🛡️ Wazuh Dashboard : ${WAZUH_URL}"
 log ""
-log "Specula Console : ${FRONT_URL}"
-log "Specula API Docs: ${API_URL}"
-log "Wazuh Dashboard : ${WAZUH_URL}"
-log ""
-warn "Wazuh uses a self-signed certificate. Your browser may ask you to accept a security exception."
+warn "⚠️  Wazuh uses a self-signed certificate. Your browser may ask you to accept a security exception."
 
 if [[ "$SHOW_LOGS_ON_SUCCESS" -eq 1 ]]; then
   log ""
