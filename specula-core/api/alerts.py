@@ -1,5 +1,4 @@
 from fastapi import APIRouter
-
 from api.dependencies import alerts_service, network_alerts_service
 from api.utils.fixtures import load_json_fixture_list
 from config.settings import settings

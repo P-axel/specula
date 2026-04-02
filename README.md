@@ -2,7 +2,7 @@
 
 Specula est une plateforme de détection et d’analyse d’événements de sécurité, pensée pour construire un SOC **plus lisible, plus exploitable et plus accessible**.
 
-👉 Objectif : transformer des flux de sécurité complexes en signaux utiles, corrélés et actionnables.
+👉 Objectif : transformer des flux de sécurité complexes en **signaux utiles, corrélés et actionnables**.
 
 🌐 https://p-axel.github.io/
 
@@ -17,11 +17,15 @@ Specula est une plateforme de détection et d’analyse d’événements de séc
 
 ## 🎯 Pourquoi Specula ?
 
-Mettre en place un SOC est souvent complexe, lourd et difficile à exploiter.
+Mettre en place un SOC est souvent :
+
+* complexe
+* lourd à maintenir
+* difficile à exploiter réellement
 
 Specula propose une approche différente :
 
-* 🔍 Collecter les bons événements
+* 🔍 Se concentrer sur les bons événements
 * ⚡ Corréler les signaux utiles
 * 📊 Rendre l’analyse compréhensible
 * 🧠 Structurer la détection plutôt que l’empiler
@@ -30,25 +34,64 @@ Specula propose une approche différente :
 
 ## 🧩 Architecture actuelle
 
-Specula s’appuie aujourd’hui sur :
+Specula s’appuie aujourd’hui sur des outils spécialisés :
 
-* **Wazuh** → collecte endpoint
+* **Wazuh** → collecte endpoint (logs système, sécurité)
 * **Suricata** → détection réseau
 
 ⚠️ Important :
 
-Cette version est une **première base fonctionnelle**.
+Cette version est une **première base fonctionnelle** :
 
-* les briques sont encore liées
-* la modularité est **pensée mais en cours de construction**
+* certaines briques sont encore couplées
+* la modularité est **en cours de construction**
 
-👉 Objectif : évoluer vers une plateforme réellement modulaire et extensible
+👉 Objectif : évoluer vers une plateforme **completement modulaire et extensible**
+
+---
+
+## 🔌 Sources de données (IMPORTANT)
+
+Specula **ne collecte pas directement les données**.
+
+👉 Il agit comme un **moteur de corrélation et d’analyse**, en s’appuyant sur des sources externes :
+
+* Wazuh
+* Suricata
+
+---
+
+### ⚠️ Agents Wazuh
+
+Specula **ne déploie pas les agents Wazuh automatiquement**.
+
+👉 Pour obtenir des événements système (processus, fichiers, sécurité) :
+
+➡️ Vous devez **installer un agent Wazuh sur les machines à superviser**
+
+Sans agent :
+
+* vous verrez principalement les données réseau (Suricata)
+* la visibilité endpoint sera limitée
+
+---
+
+### 🧪 Mode démo
+
+Le déploiement fourni inclut :
+
+* une stack Wazuh (single-node)
+* Suricata
+* Specula
+
+👉 Ce mode permet de tester rapidement la plateforme,
+mais nécessite des sources de données actives pour être pleinement exploitable.
 
 ---
 
 ## 🚀 Fonctionnalités
 
-* 🔍 Collecte d’événements (Wazuh / Suricata)
+* 🔍 Ingestion d’événements (Wazuh / Suricata)
 * ⚡ Corrélation d’incidents
 * 📊 Interface d’analyse claire
 * 🧪 Mode démo prêt à l’emploi
@@ -62,6 +105,7 @@ Cette version est une **première base fonctionnelle**.
 * lab cybersécurité
 * analyse d’événements
 * expérimentation de corrélation
+* plateforme pédagogique
 
 ---
 
@@ -162,6 +206,23 @@ chmod +x start-specula.sh
 
 ---
 
+# 🧪 Vérifier que tout fonctionne
+
+Après démarrage :
+
+👉 Vérifiez que vous voyez :
+
+* des événements réseau (Suricata)
+* des alertes Wazuh (si agents actifs)
+
+👉 Si rien n’apparaît :
+
+* vérifiez Suricata
+* vérifiez les agents Wazuh
+* vérifiez les volumes Docker
+
+---
+
 # 🛠️ Dépannage rapide
 
 ## ❌ Docker non accessible
@@ -228,12 +289,15 @@ lsof -i :5173
 
 # 🧠 Vision
 
-Specula s’inscrit dans une vision plus large :
+Specula s’inscrit dans une vision claire :
 
 * un noyau robuste et maîtrisé
 * une architecture modulaire
 * une corrélation intelligente des signaux
 * une plateforme orientée **analyse réelle**, pas juste collecte
+
+👉 Specula n’est pas un collecteur de logs.
+👉 C’est un **moteur d’analyse et de corrélation**.
 
 ---
 
