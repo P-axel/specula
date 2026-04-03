@@ -1,22 +1,26 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, List, Dict
 
 from connectors.suricata.connector import SuricataConnector
 from normalization.suricata_normalizer import SuricataNormalizer
 from providers.base_provider import DetectionProvider
 
+logger = logging.getLogger(__name__)
+
 
 class SuricataProvider(DetectionProvider):
     """
-    Provider Suricata.
+    Provider Suricata (bas niveau).
 
     Rôle :
-    - point d'entrée unique pour Suricata
-    - récupère les événements via le connector
-    - les normalise via le normalizer
-    - retourne des détections prêtes pour Specula
+    - récupérer les événements Suricata (eve.json)
+    - normaliser les événements
+    - exposer des détections brutes prêtes pour Specula
+
+    ⚠️ Pas d’enrichissement métier ici
     """
 
     name = "suricata"
@@ -25,9 +29,31 @@ class SuricataProvider(DetectionProvider):
         self.connector = SuricataConnector(eve_path)
         self.normalizer = SuricataNormalizer()
 
-    def list_detections(self, limit: int = 100) -> list[dict[str, Any]]:
-        raw_events = self.connector.fetch_events(limit=limit)
-        return [self.normalizer.normalize(event) for event in raw_events]
+    def list_detections(self, limit: int = 100) -> List[Dict[str, Any]]:
+        try:
+            raw_events = self.connector.fetch_events(limit=limit)
+        except Exception as e:
+            logger.error("Failed to fetch Suricata events: %s", e, exc_info=True)
+            return []
 
-    def get_status(self) -> dict[str, Any]:
-        return self.connector.get_status()
+        detections: List[Dict[str, Any]] = []
+
+        for event in raw_events:
+            try:
+                normalized = self.normalizer.normalize(event)
+                if normalized:
+                    detections.append(normalized)
+            except Exception as e:
+                logger.warning("Failed to normalize Suricata event: %s", e, exc_info=True)
+
+        return detections
+
+    def get_status(self) -> Dict[str, Any]:
+        try:
+            return self.connector.get_status()
+        except Exception as e:
+            logger.error("Failed to get Suricata status: %s", e, exc_info=True)
+            return {
+                "status": "error",
+                "message": str(e),
+            }

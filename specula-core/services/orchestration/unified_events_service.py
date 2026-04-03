@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from config.settings import settings
 from common.event import Event
 from services.ingestion.alerts_service import AlertsService
 from services.ingestion.assets_service import AssetsService
@@ -12,18 +13,16 @@ from services.ingestion.wazuh_events_service import WazuhEventsService
 class UnifiedEventsService:
     """
     Agrège plusieurs sources brutes et les transforme en événements normalisés.
-
-    Pipeline :
-    - lecture brut source
-    - normalisation légère -> Event
-    - enrichissement léger avec le contexte actif
     """
 
     def __init__(self, eve_path: str) -> None:
         self.suricata_service = SuricataService(eve_path)
         self.alerts_service = AlertsService()
         self.assets_service = AssetsService()
-        self.wazuh_events_service = WazuhEventsService()
+
+        self.wazuh_events_service: WazuhEventsService | None = None
+        if settings.specula_enable_wazuh:
+            self.wazuh_events_service = WazuhEventsService()
 
     def list_events(self, limit: int = 200) -> list[Event]:
         items: list[Event] = []
@@ -65,6 +64,58 @@ class UnifiedEventsService:
             return [asset.to_dict() for asset in self.assets_service.list_assets()]
         except Exception:
             return []
+
+    def _safe_call_suricata(self, limit: int) -> list[dict[str, Any]]:
+        for method_name in ("list_events", "list_event_payloads", "list_suricata_events"):
+            method = getattr(self.suricata_service, method_name, None)
+            if method is None:
+                continue
+
+            try:
+                return method(limit=limit)
+            except TypeError:
+                try:
+                    return method()
+                except Exception:
+                    continue
+            except Exception:
+                continue
+
+        return []
+
+    def _safe_call_wazuh_alerts(self, limit: int) -> list[dict[str, Any]]:
+        if self.wazuh_events_service is None:
+            return []
+
+        method = getattr(self.wazuh_events_service, "list_wazuh_alert_payloads", None)
+        if method is None:
+            return []
+
+        try:
+            return method(limit=limit)
+        except Exception:
+            return []
+
+    def _safe_call_wazuh_agents(self, limit: int) -> list[dict[str, Any]]:
+        if self.wazuh_events_service is None:
+            return []
+
+        for method_name in ("list_agents", "list_wazuh_agents", "list_agent_payloads"):
+            method = getattr(self.wazuh_events_service, method_name, None)
+            if method is None:
+                continue
+
+            try:
+                return method(limit=limit)
+            except TypeError:
+                try:
+                    return method()
+                except Exception:
+                    continue
+            except Exception:
+                continue
+
+        return []
 
     def _from_suricata_payload(self, payload: dict[str, Any]) -> Event:
         alert = payload.get("alert") if isinstance(payload.get("alert"), dict) else {}
@@ -258,17 +309,7 @@ class UnifiedEventsService:
             )
 
         if not event.hostname:
-            event.hostname = (
-                self._safe_str(asset.get("hostname"))
-                or self._safe_str(asset.get("name"))
-                or event.hostname
-            )
-
-        event.metadata["asset_criticality"] = asset.get("criticality")
-        event.metadata["asset_platform"] = asset.get("platform") or asset.get("os_name")
-        event.metadata["asset_health_state"] = asset.get("health_state")
-        event.metadata["asset_status"] = asset.get("status")
-        event.metadata["asset_groups"] = asset.get("groups") or []
+            event.hostname = self._safe_str(asset.get("hostname")) or event.hostname
 
         return event
 
@@ -277,194 +318,115 @@ class UnifiedEventsService:
         event: Event,
         assets: list[dict[str, Any]],
     ) -> dict[str, Any] | None:
-        event_asset_id = self._safe_str(event.asset_id).lower()
-        event_asset_name = self._safe_str(event.asset_name).lower()
-        event_hostname = self._safe_str(event.hostname).lower()
-        event_src_ip = self._safe_str(event.src_ip).lower()
-        event_dest_ip = self._safe_str(event.dest_ip).lower()
+        event_asset_id = self._safe_str(event.asset_id)
+        event_hostname = self._safe_str(event.hostname)
+        event_asset_name = self._safe_str(event.asset_name)
+        event_dest_ip = self._safe_str(event.dest_ip)
 
         for asset in assets:
-            asset_id = self._safe_str(asset.get("asset_id")).lower()
-            asset_name = self._safe_str(asset.get("name")).lower()
-            hostname = self._safe_str(asset.get("hostname")).lower()
-            ip_address = self._safe_str(asset.get("ip")).lower()
-            last_ip = self._safe_str(asset.get("last_ip")).lower()
+            asset_id = self._safe_str(asset.get("asset_id"))
+            hostname = self._safe_str(asset.get("hostname"))
+            name = self._safe_str(asset.get("name"))
+            ip_address = self._safe_str(asset.get("ip_address"))
 
-            if event_asset_id and event_asset_id == asset_id:
+            if event_asset_id and asset_id and event_asset_id == asset_id:
                 return asset
-
-            if event_asset_name and event_asset_name == asset_name:
+            if event_hostname and hostname and event_hostname == hostname:
                 return asset
-
-            if event_hostname and event_hostname in {asset_name, hostname}:
+            if event_asset_name and name and event_asset_name == name:
                 return asset
-
-            if event_src_ip and event_src_ip in {ip_address, last_ip}:
-                return asset
-
-            if event_dest_ip and event_dest_ip in {ip_address, last_ip}:
+            if event_dest_ip and ip_address and event_dest_ip == ip_address:
                 return asset
 
         return None
 
-    def _safe_str(self, value: Any) -> str:
-        return str(value or "").strip()
+    @staticmethod
+    def _safe_str(value: Any) -> str | None:
+        if value is None:
+            return None
+        text = str(value).strip()
+        return text or None
 
-    def _safe_call_suricata(self, limit: int) -> list[dict[str, Any]]:
-        candidates = [
-            "list_alert_payloads",
-            "list_alerts",
-            "list_detection_payloads",
-        ]
+    @staticmethod
+    def _dedupe_tags(values: list[Any]) -> list[str]:
+        seen: set[str] = set()
+        result: list[str] = []
 
-        for method_name in candidates:
-            method = getattr(self.suricata_service, method_name, None)
-            if callable(method):
-                try:
-                    result = method(limit=limit)
-                except TypeError:
-                    result = method()
-                if isinstance(result, list):
-                    return result
+        for value in values:
+            if value is None:
+                continue
+            text = str(value).strip().lower()
+            if not text or text in seen:
+                continue
+            seen.add(text)
+            result.append(text)
 
-        return []
+        return result
 
-    def _safe_call_wazuh_alerts(self, limit: int) -> list[dict[str, Any]]:
-        candidates = [
-            "list_wazuh_alert_payloads",
-            "list_alert_payloads",
-            "list_alerts",
-        ]
-
-        for method_name in candidates:
-            method = getattr(self.alerts_service, method_name, None)
-            if callable(method):
-                try:
-                    result = method(limit=limit)
-                except TypeError:
-                    try:
-                        result = method()
-                    except TypeError:
-                        continue
-                if isinstance(result, list):
-                    return result
-
-        return []
-
-    def _safe_call_wazuh_agents(self, limit: int) -> list[dict[str, Any]]:
-        candidates = [
-            "list_agents",
-            "list_agent_status_payloads",
-            "list_events",
-        ]
-
-        for method_name in candidates:
-            method = getattr(self.wazuh_events_service, method_name, None)
-            if callable(method):
-                try:
-                    result = method(limit=limit)
-                except TypeError:
-                    try:
-                        result = method()
-                    except TypeError:
-                        continue
-                if isinstance(result, list):
-                    return result
-
-        return []
-
-    def _normalize_suricata_severity(self, value: Any) -> str:
-        if isinstance(value, int):
-            return {
-                1: "critical",
-                2: "high",
-                3: "medium",
-                4: "low",
-            }.get(value, "low")
-
-        normalized = str(value or "").strip().lower()
-        if normalized in {"critical", "high", "medium", "low", "info"}:
-            return normalized
-        return "low"
-
-    def _normalize_wazuh_severity(self, rule_level: Any) -> str:
+    @staticmethod
+    def _normalize_suricata_severity(value: Any) -> str:
         try:
-            level = int(rule_level)
+            severity = int(value)
         except (TypeError, ValueError):
-            return "low"
+            return "info"
+
+        if severity <= 1:
+            return "critical"
+        if severity == 2:
+            return "high"
+        if severity == 3:
+            return "medium"
+        return "info"
+
+    @staticmethod
+    def _suricata_confidence(payload: dict[str, Any]) -> float:
+        alert = payload.get("alert") if isinstance(payload.get("alert"), dict) else {}
+        if alert.get("signature_id"):
+            return 0.9
+        return 0.6
+
+    @staticmethod
+    def _infer_suricata_category(payload: dict[str, Any]) -> str:
+        alert = payload.get("alert") if isinstance(payload.get("alert"), dict) else {}
+        category = str(alert.get("category") or payload.get("event_type") or "network").strip().lower()
+        return category or "network"
+
+    @staticmethod
+    def _normalize_wazuh_severity(value: Any) -> str:
+        try:
+            level = int(value)
+        except (TypeError, ValueError):
+            return "info"
 
         if level >= 12:
             return "critical"
         if level >= 8:
             return "high"
-        if level >= 5:
+        if level >= 4:
             return "medium"
-        if level >= 3:
+        if level >= 1:
             return "low"
         return "info"
 
-    def _suricata_confidence(self, payload: dict[str, Any]) -> float:
-        event_type = str(payload.get("event_type") or "").strip().lower()
-        if event_type == "alert":
-            return 0.75
-        if event_type in {"dns", "http", "tls", "anomaly"}:
-            return 0.50
-        return 0.30
-
-    def _wazuh_confidence(self, rule_level: Any) -> float:
+    @staticmethod
+    def _wazuh_confidence(value: Any) -> float:
         try:
-            level = int(rule_level)
+            level = int(value)
         except (TypeError, ValueError):
-            return 0.50
+            return 0.5
 
         if level >= 12:
-            return 0.90
+            return 0.95
         if level >= 8:
-            return 0.80
-        if level >= 5:
-            return 0.65
-        return 0.50
+            return 0.85
+        if level >= 4:
+            return 0.7
+        return 0.55
 
-    def _infer_suricata_category(self, payload: dict[str, Any]) -> str:
-        event_type = str(payload.get("event_type") or "").strip().lower()
-        app_proto = str(payload.get("app_proto") or "").strip().lower()
-
-        if event_type == "dns" or app_proto == "dns":
-            return "dns_activity"
-        if event_type == "http" or app_proto == "http":
-            return "web_activity"
-        if event_type == "tls" or app_proto == "tls":
-            return "tls_activity"
-        if event_type == "alert":
-            return "network_alert"
-        return "network_event"
-
-    def _infer_wazuh_alert_category(self, payload: dict[str, Any]) -> str:
+    @staticmethod
+    def _infer_wazuh_alert_category(payload: dict[str, Any]) -> str:
         rule = payload.get("rule") if isinstance(payload.get("rule"), dict) else {}
-        groups = [str(item).strip().lower() for item in (rule.get("groups") or [])]
-        description = str(rule.get("description") or "").strip().lower()
-
-        if "authentication" in groups or "auth" in description:
-            return "identity_activity"
-        if "syscheck" in groups or "fim" in groups:
-            return "file_integrity"
-        if "rootcheck" in groups:
-            return "host_anomaly"
-        if "process" in groups:
-            return "process_activity"
-        if "vulnerability" in groups:
-            return "vulnerability"
-        return "system_activity"
-
-    def _dedupe_tags(self, values: list[Any]) -> list[str]:
-        seen: set[str] = set()
-        items: list[str] = []
-
-        for value in values:
-            normalized = str(value or "").strip().lower()
-            if not normalized or normalized in seen:
-                continue
-            seen.add(normalized)
-            items.append(normalized)
-
-        return items
+        groups = rule.get("groups") or []
+        if isinstance(groups, list) and groups:
+            return str(groups[0]).strip().lower()
+        return "host"
