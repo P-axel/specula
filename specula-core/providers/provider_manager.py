@@ -31,7 +31,11 @@ class ProviderManager:
                 return []
 
             try:
-                return provider.list_detections(limit=limit, offset=offset)
+                try:
+                    return provider.list_detections(limit=limit, offset=offset)
+                except TypeError:
+                    data = provider.list_detections(limit=limit + offset)
+                    return data[offset:] if offset > 0 else data
             except Exception as e:
                 logger.error("Provider %s failed: %s", source, e, exc_info=True)
                 return []
@@ -40,7 +44,10 @@ class ProviderManager:
 
         for name, provider in self.providers.items():
             try:
-                data = provider.list_detections(limit=limit, offset=0)
+                try:
+                    data = provider.list_detections(limit=limit, offset=0)
+                except TypeError:
+                    data = provider.list_detections(limit=limit)
                 detections.extend(data)
             except Exception as e:
                 logger.error("Provider %s failed: %s", name, e, exc_info=True)
