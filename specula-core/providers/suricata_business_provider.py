@@ -25,7 +25,7 @@ class SuricataBusinessProvider(DetectionProvider):
     def __init__(self) -> None:
         self.detections_service = DetectionsService()
 
-    def list_detections(self, limit: int = 200) -> List[Dict[str, Any]]:
+    def list_detections(self, limit: int = 200, offset: int = 0) -> List[Dict[str, Any]]:
         try:
             detections = self.detections_service.list_detections(source="suricata")
         except Exception as e:

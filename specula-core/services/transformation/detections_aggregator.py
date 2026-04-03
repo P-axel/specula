@@ -346,20 +346,9 @@ class DetectionsAggregator:
             item.get("source_engine") or item.get("engine") or item.get("source") or ""
         ).strip().lower()
 
-        # bruit Suricata faible valeur
+        # mode debug temporaire : on laisse passer Suricata
         if source_engine == "suricata":
-            if severity in {"info", ""} and category in {
-                "network_flow",
-                "network_dns",
-                "network_tls",
-                "dns",
-                "tls",
-                "http",
-            }:
-                return False
-
-            if title in {"event", "flow", "dns", "tls", "http"}:
-                return False
+            return True
 
         if not any(
             [
