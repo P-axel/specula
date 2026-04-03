@@ -90,3 +90,4 @@ deploy/master/wazuh/
 deploy/master/suricata/single-node/etc/
 deploy/master/suricata/single-node/etc/*.config
 deploy/master/suricata/single-node/etc/*.yaml
+archives/
