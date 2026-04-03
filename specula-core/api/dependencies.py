@@ -1,51 +1,34 @@
 import os
 from pathlib import Path
 
+from config.settings import settings
 from detection.engine import DetectionEngine
 
-# ingestion
 from services.ingestion.alerts_service import AlertsService
 from services.ingestion.assets_service import AssetsService
 from services.ingestion.events_service import EventsService
 from services.ingestion.network_alerts_service import NetworkAlertsService
-from services.ingestion.wazuh_events_service import WazuhEventsService
 
-# transformation
 from services.transformation.detections_aggregator import DetectionsAggregator
 from services.transformation.detections_service import DetectionsService
 
-# orchestration
 from services.orchestration.network_incidents_service import NetworkIncidentsService
 from services.orchestration.unified_correlator import UnifiedCorrelator
 from services.orchestration.unified_events_service import UnifiedEventsService
 from services.orchestration.unified_incidents_service import UnifiedIncidentsService
 
-# core services
 from services.plugin_registry import PluginRegistry
 from services.themes_service import ThemesService
 
 
 DEFAULT_EVE_PATH = Path(
-    os.getenv("SPECULA_SURICATA_EVE_PATH", "/var/log/suricata/eve.json")
+    settings.specula_suricata_eve_path or "/var/log/suricata/eve.json"
 )
 
 ENABLE_SURICATA = os.getenv("SPECULA_ENABLE_SURICATA", "true").lower() == "true"
-ENABLE_WAZUH = os.getenv("SPECULA_ENABLE_WAZUH", "true").lower() == "true"
-
-WAZUH_BASE_URL = os.getenv("WAZUH_BASE_URL")
-WAZUH_USERNAME = os.getenv("WAZUH_USERNAME")
-WAZUH_PASSWORD = os.getenv("WAZUH_PASSWORD")
-WAZUH_VERIFY_SSL = os.getenv("WAZUH_VERIFY_SSL", "true").lower() == "true"
-WAZUH_TIMEOUT = int(os.getenv("WAZUH_TIMEOUT", "30"))
-WAZUH_AUTH_TYPE = os.getenv("WAZUH_AUTH_TYPE", "token")
-
-
-# ------------------------------------------------------------------
-# Base services
-# ------------------------------------------------------------------
+ENABLE_WAZUH = settings.specula_enable_wazuh
 
 assets_service = AssetsService()
-wazuh_events_service = WazuhEventsService()
 alerts_service = AlertsService()
 detections_service = DetectionsService()
 detection_engine = DetectionEngine()
@@ -53,10 +36,11 @@ themes_service = ThemesService()
 network_alerts_service = NetworkAlertsService()
 network_incidents_service = NetworkIncidentsService()
 
-
-# ------------------------------------------------------------------
-# Legacy / compatibility service
-# ------------------------------------------------------------------
+if ENABLE_WAZUH:
+    from services.ingestion.wazuh_events_service import WazuhEventsService
+    wazuh_events_service = WazuhEventsService()
+else:
+    wazuh_events_service = None
 
 events_service = EventsService(
     event_repository=None,
@@ -64,23 +48,18 @@ events_service = EventsService(
     detections_service=detections_service,
 )
 
-
-# ------------------------------------------------------------------
-# Unified orchestration
-# ------------------------------------------------------------------
-
 unified_events_service = UnifiedEventsService(str(DEFAULT_EVE_PATH))
 
 plugin_registry = PluginRegistry.build_default(
     eve_path=DEFAULT_EVE_PATH,
     enable_suricata=ENABLE_SURICATA,
     enable_wazuh=ENABLE_WAZUH,
-    wazuh_base_url=WAZUH_BASE_URL,
-    wazuh_username=WAZUH_USERNAME,
-    wazuh_password=WAZUH_PASSWORD,
-    wazuh_verify_ssl=WAZUH_VERIFY_SSL,
-    wazuh_timeout=WAZUH_TIMEOUT,
-    wazuh_auth_type=WAZUH_AUTH_TYPE,
+    wazuh_base_url=settings.wazuh_base_url,
+    wazuh_username=settings.wazuh_username,
+    wazuh_password=settings.wazuh_password,
+    wazuh_verify_ssl=settings.wazuh_verify_tls,
+    wazuh_timeout=settings.wazuh_timeout,
+    wazuh_auth_type=os.getenv("WAZUH_AUTH_TYPE", "token"),
 )
 
 detections_aggregator = DetectionsAggregator(

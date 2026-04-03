@@ -1,22 +1,33 @@
+from __future__ import annotations
+
 from typing import List, Optional
 
+from config.settings import settings
 from common.asset import Asset
 from connectors.wazuh.agents import WazuhAgentsConnector
 from connectors.wazuh.client import WazuhClient
 from specula_logging.logger import get_logger
 from storage.asset_repository import AssetRepository
 
-
 logger = get_logger(__name__)
 
 
 class AssetsService:
     def __init__(self, repository: Optional[AssetRepository] = None) -> None:
-        client = WazuhClient()
-        self.connector = WazuhAgentsConnector(client)
+        self.connector: WazuhAgentsConnector | None = None
         self.repository = repository or AssetRepository()
 
+        if settings.specula_enable_wazuh and settings.wazuh_base_url:
+            client = WazuhClient()
+            self.connector = WazuhAgentsConnector(client)
+        else:
+            logger.info("AssetsService initialisé sans connecteur Wazuh")
+
     def list_assets(self) -> List[Asset]:
+        if self.connector is None:
+            logger.info("Wazuh désactivé, aucun asset Wazuh à retourner")
+            return []
+
         logger.info("Récupération des assets depuis Wazuh")
         agents = self.connector.list_agents()
         assets = [self.connector.to_asset(agent) for agent in agents]
@@ -33,6 +44,10 @@ class AssetsService:
         return assets
 
     def get_asset(self, asset_id: str) -> Optional[Asset]:
+        if self.connector is None:
+            logger.info("Wazuh désactivé, impossible de récupérer l'asset %s", asset_id)
+            return None
+
         logger.info("Récupération de l'asset %s", asset_id)
         agent = self.connector.get_agent(asset_id)
 

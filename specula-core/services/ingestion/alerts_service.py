@@ -12,33 +12,28 @@ logger = get_logger(__name__)
 class AlertsService:
     """
     Service d'ingestion autour des alertes Wazuh.
-
-    Rôle :
-    - récupérer les alertes via le provider Wazuh
-    - exposer une vue 'alertes' lisible pour l'API
-    - exposer les payloads Wazuh bruts pour les autres pipelines
-
-    Ce service ne fait plus :
-    - scoring
-    - déduplication
-    - corrélation
     """
 
     def __init__(self) -> None:
-        self.provider = WazuhProvider(
-            base_url=settings.wazuh_indexer_url,
-            username=settings.wazuh_indexer_username,
-            password=settings.wazuh_indexer_password,
-            verify_ssl=settings.wazuh_verify_tls,
-            timeout=settings.wazuh_timeout,
-            auth_type="basic",
-        )
+        self.provider: WazuhProvider | None = None
+
+        if settings.specula_enable_wazuh and settings.wazuh_indexer_url:
+            self.provider = WazuhProvider(
+                base_url=settings.wazuh_indexer_url,
+                username=settings.wazuh_indexer_username,
+                password=settings.wazuh_indexer_password,
+                verify_ssl=settings.wazuh_verify_tls,
+                timeout=settings.wazuh_timeout,
+                auth_type="basic",
+            )
+        else:
+            logger.info("AlertsService initialisé sans provider Wazuh")
 
     def list_alerts(self, limit: int = 100) -> list[dict[str, Any]]:
-        """
-        Retourne une vue 'alertes' lisible pour l'API à partir
-        des détections Wazuh déjà normalisées.
-        """
+        if self.provider is None:
+            logger.info("Wazuh désactivé, aucune alerte Wazuh à retourner")
+            return []
+
         logger.info("Génération des alertes depuis les détections Wazuh")
 
         try:
@@ -58,7 +53,9 @@ class AlertsService:
             process = detection.get("process", {}) or {}
             file_data = detection.get("file", {}) or {}
 
-            severity = str(event.get("severity") or detection.get("severity") or "info").strip().lower()
+            severity = str(
+                event.get("severity") or detection.get("severity") or "info"
+            ).strip().lower()
             if severity not in {"medium", "high", "critical"}:
                 continue
 
@@ -109,9 +106,10 @@ class AlertsService:
         return alerts
 
     def list_wazuh_alert_payloads(self, limit: int = 100) -> list[dict[str, Any]]:
-        """
-        Retourne les alertes Wazuh brutes depuis le connecteur du provider.
-        """
+        if self.provider is None:
+            logger.info("Wazuh désactivé, aucun payload brut à retourner")
+            return []
+
         logger.info("Récupération des alertes Wazuh brutes")
 
         try:
