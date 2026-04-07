@@ -21,7 +21,7 @@ help:
 	@echo "  API Docs  : http://localhost:8000/docs"
 	@echo ""
 
-# ─── Préparation ───────────────────────────────────────────────
+# ─── Création .env ─────────────────────────────────────────────
 .env:
 	@if [ -f .env.example ]; then \
 		cp .env.example .env; \
@@ -30,43 +30,42 @@ help:
 		echo "[specula] ERREUR: .env.example manquant"; exit 1; \
 	fi
 
-_detect-interface:
-	@if [ -z "$${SURICATA_INTERFACE:-}" ]; then \
-		DETECTED=$$(ip -o link show \
+# ─── Macro : détection interface + démarrage ───────────────────
+# Tout dans un seul shell pour que SURICATA_INTERFACE se propage.
+define _start
+	set -a; . ./$(ENV_FILE); set +a; \
+	if [ -z "$${SURICATA_INTERFACE:-}" ]; then \
+		SURICATA_INTERFACE=$$(ip -o link show \
 			| awk -F': ' '{print $$2}' \
 			| sed 's/@.*//' \
 			| grep -Ev '^(lo|docker[0-9]*|br-|veth|virbr|tun|tap|wg[0-9]*|zt)' \
 			| grep -E '^(eth|en|ens|enp|eno|wlan|wl)' \
 			| head -n1 || true); \
-		if [ -n "$$DETECTED" ]; then \
-			echo "[specula] Interface Suricata auto-détectée : $$DETECTED"; \
-			export SURICATA_INTERFACE=$$DETECTED; \
-		else \
-			echo "[specula] ERREUR: impossible de détecter l'interface. Ajoutez SURICATA_INTERFACE dans .env"; \
+		if [ -z "$$SURICATA_INTERFACE" ]; then \
+			echo "[specula] ERREUR: interface réseau non détectée."; \
+			echo "          Ajoutez SURICATA_INTERFACE=<interface> dans .env"; \
 			exit 1; \
 		fi; \
-	fi
-
-_runtime-dirs:
-	@mkdir -p runtime/logs/suricata
+		echo "[specula] Interface auto-détectée : $$SURICATA_INTERFACE"; \
+	else \
+		echo "[specula] Interface : $$SURICATA_INTERFACE"; \
+	fi; \
+	mkdir -p runtime/logs/suricata; \
+	SURICATA_INTERFACE=$$SURICATA_INTERFACE $(COMPOSE) --env-file $(ENV_FILE)
+endef
 
 # ─── Démarrage ─────────────────────────────────────────────────
-up: .env _detect-interface _runtime-dirs
-	@echo "[specula] Démarrage de la stack..."
-	@set -a; . ./$(ENV_FILE); set +a; \
-	$(COMPOSE) --env-file $(ENV_FILE) up -d --remove-orphans
+up: .env
+	@$(_start) up -d --remove-orphans
 	@echo ""
 	@echo "════════════════════════════════════"
 	@echo "  Console : http://localhost:5173"
 	@echo "  API     : http://localhost:8000/docs"
 	@echo "════════════════════════════════════"
 
-up-wazuh: .env _detect-interface _runtime-dirs wazuh-certs
-	@echo "[specula] Activation de Wazuh dans .env..."
+up-wazuh: .env wazuh-certs
 	@sed -i 's/SPECULA_ENABLE_WAZUH=false/SPECULA_ENABLE_WAZUH=true/' $(ENV_FILE) 2>/dev/null || true
-	@echo "[specula] Démarrage de la stack avec Wazuh..."
-	@set -a; . ./$(ENV_FILE); set +a; \
-	$(COMPOSE) --env-file $(ENV_FILE) --profile wazuh up -d --remove-orphans
+	@$(_start) --profile wazuh up -d --remove-orphans
 	@echo ""
 	@echo "════════════════════════════════════"
 	@echo "  Console       : http://localhost:5173"
@@ -76,10 +75,8 @@ up-wazuh: .env _detect-interface _runtime-dirs wazuh-certs
 	@echo "════════════════════════════════════"
 
 # ─── Reconstruction ────────────────────────────────────────────
-rebuild: .env _detect-interface _runtime-dirs
-	@echo "[specula] Reconstruction des images..."
-	@set -a; . ./$(ENV_FILE); set +a; \
-	$(COMPOSE) --env-file $(ENV_FILE) up -d --remove-orphans --build
+rebuild: .env
+	@$(_start) up -d --remove-orphans --build
 
 # ─── Arrêt ─────────────────────────────────────────────────────
 down:
