@@ -1,18 +1,33 @@
 .page-hero {
+  position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-
+  gap: 0.6rem;
   padding: 1.5rem 1.75rem;
-  border-radius: 1.25rem;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #020e18 0%, #030f1c 60%, #041524 100%);
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  box-shadow: 0 0 32px rgba(0, 229, 255, 0.06), inset 0 1px 0 rgba(0, 229, 255, 0.1);
+}
 
-  background: linear-gradient(
-    90deg,
-    rgba(13, 21, 38, 1) 0%,
-    rgba(21, 35, 64, 1) 100%
-  );
-
-  border: 1px solid rgba(148, 163, 184, 0.12);
+/* Corner accents */
+.page-hero::before,
+.page-hero::after {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+}
+.page-hero::before {
+  top: 0; left: 0;
+  border-top: 2px solid var(--c-cyan, #00e5ff);
+  border-left: 2px solid var(--c-cyan, #00e5ff);
+}
+.page-hero::after {
+  bottom: 0; right: 0;
+  border-bottom: 2px solid var(--c-teal, #00ffcc);
+  border-right: 2px solid var(--c-teal, #00ffcc);
 }
 
 .page-hero__top {
@@ -22,44 +37,45 @@
 }
 
 .page-hero__eyebrow {
-  font-size: 0.75rem;
-  letter-spacing: 0.08em;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: #7db3ff;
-  font-weight: 600;
-}
-
-.page-hero__badge {
-  padding: 0.3rem 0.7rem;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-
-  background: rgba(59, 130, 246, 0.15);
-  color: #93c5fd;
-  border: 1px solid rgba(59, 130, 246, 0.25);
-}
-
-.page-hero__title {
-  font-size: 1.6rem;
-  font-weight: 800;
-  color: #e2e8f0;
+  color: var(--c-cyan-dim, #006880);
   margin: 0;
 }
 
-.page-hero__description {
-  font-size: 0.95rem;
-  color: #94a3b8;
-  max-width: 700px;
+.page-hero__badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  background: rgba(0, 229, 255, 0.07);
+  color: var(--c-cyan, #00e5ff);
+  border: 1px solid rgba(0, 229, 255, 0.22);
 }
 
 .page-hero__content {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 
-.page-hero__eyebrow,
-.page-hero__description {
+.page-hero__title {
+  font-family: 'Orbitron', monospace;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--c-text-bright, #e0f4ff);
   margin: 0;
+  letter-spacing: 0.04em;
+}
+
+.page-hero__description {
+  font-size: 0.88rem;
+  color: var(--c-text-dim, #3d6070);
+  max-width: 680px;
+  margin: 0;
+  font-family: 'Share Tech Mono', monospace;
+  line-height: 1.6;
 }

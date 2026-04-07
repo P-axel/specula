@@ -1,13 +1,32 @@
 .page-section {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  padding: 1.2rem 1.4rem;
+  border-radius: 6px;
+  background: var(--c-bg-panel, #030f18);
+  border: 1px solid var(--c-border, #0c2d3d);
+  transition: border-color 0.2s ease;
+}
 
-  padding: 1.25rem;
-  border-radius: 1rem;
+.page-section:hover {
+  border-color: var(--c-border-bright, #0e4055);
+}
 
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(148, 163, 184, 0.12);
+/* Top neon accent line */
+.page-section::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 12px; right: 12px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(0, 229, 255, 0.5) 40%,
+    rgba(0, 255, 204, 0.5) 60%,
+    transparent
+  );
 }
 
 .page-section__header {
@@ -17,10 +36,14 @@
 }
 
 .page-section__title {
-  font-size: 1rem;
-  font-weight: 700;
-  color: #e2e8f0;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--c-cyan, #00e5ff);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
   margin: 0;
+  text-shadow: 0 0 8px rgba(0, 229, 255, 0.3);
 }
 
 .page-section__content {
