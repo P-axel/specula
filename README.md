@@ -39,7 +39,7 @@ Wazuh (endpoint)   ──┘         (optionnel)
 ## Prérequis
 
 - Docker + Docker Compose (v2)
-- `curl`
+- `make`
 - Linux (testé sur Debian/Ubuntu)
 
 ```bash
@@ -66,27 +66,19 @@ git clone https://github.com/P-axel/specula.git
 cd specula
 ```
 
-### 2. Configurer
-
-```bash
-cp .env.example .env
-```
-
-Le fichier `.env` est pré-rempli avec des valeurs par défaut.
-L'interface réseau Suricata est **auto-détectée** au démarrage.
-Si l'auto-détection échoue, ajoutez manuellement dans `.env` :
-
-```bash
-SURICATA_INTERFACE=eth0   # remplacez par votre interface (ip route)
-```
-
-### 3. Démarrer
+### 2. Démarrer
 
 ```bash
 make up
 ```
 
-Détecte l'interface réseau, construit les images Docker et attend que tout soit disponible.
+C'est tout. Le Makefile crée le `.env` si absent, détecte l'interface réseau automatiquement et construit les images Docker.
+
+Si l'auto-détection de l'interface échoue, ajoutez dans `.env` :
+
+```bash
+SURICATA_INTERFACE=eth0   # ip route pour identifier la vôtre
+```
 
 ---
 
