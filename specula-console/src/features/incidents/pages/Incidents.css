@@ -606,3 +606,115 @@
     width: 100%;
   }
 }
+
+/* ── Status toggle ─────────────────────────────────────────────────────────── */
+.incident-status-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--status-color, #4f7fd9);
+  background: transparent;
+  color: #e5edf7;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.incident-status-toggle:hover {
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 0 0 2px var(--status-color, #4f7fd9) inset;
+}
+
+.incident-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── MITRE card ─────────────────────────────────────────────────────────────── */
+.incident-mitre-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(138, 92, 246, 0.22);
+  border-radius: 14px;
+  background: rgba(138, 92, 246, 0.07);
+}
+
+.incident-mitre-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.incident-mitre-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #a78bfa;
+  min-width: 72px;
+}
+
+.incident-mitre-value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.incident-mitre-tactic {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #d8bfff;
+  text-transform: capitalize;
+}
+
+.incident-mitre-name {
+  font-size: 0.88rem;
+  color: #c8d8f0;
+}
+
+.incident-chip--mitre {
+  background: rgba(138, 92, 246, 0.14);
+  border-color: rgba(138, 92, 246, 0.28);
+  color: #ede4ff;
+  font-family: monospace;
+  font-size: 0.82rem;
+}
+
+/* ── GeoIP ──────────────────────────────────────────────────────────────────── */
+.incident-ip-geo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.incident-ip-geo code {
+  font-size: 0.88rem;
+  color: #7ec8e3;
+  font-family: monospace;
+}
+
+.incident-geo {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.84rem;
+  color: #9fb0cb;
+}
+
+.incident-geo__flag {
+  font-size: 1rem;
+}
+
+.incident-geo--unknown {
+  color: #5a6a82;
+}

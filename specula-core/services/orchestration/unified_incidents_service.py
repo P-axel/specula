@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 import os
+import time
+from threading import Lock
 from typing import Any
 
 from services.transformation.detections_aggregator import DetectionsAggregator
 from services.orchestration.unified_correlator import UnifiedCorrelator
+
+_CACHE_TTL = int(os.getenv("SPECULA_CACHE_TTL", "30"))  # secondes
+
+_incident_cache: dict[str, Any] = {"incidents": [], "ts": 0.0, "overview": None}
+_cache_lock = Lock()
 
 
 class UnifiedIncidentsService:
@@ -25,10 +32,16 @@ class UnifiedIncidentsService:
         self.aggregator = aggregator
         self.correlator = correlator or UnifiedCorrelator(window_minutes=30)
 
-        # Contrôle du mode (prod ou autre)
-        self.mode = str(os.getenv("SPECULA_MODE", "prod")).strip().lower()
-        # Le fallback est activé lorsque ce n'est pas en mode "prod"
-        self.enable_detections_fallback = self.mode != "prod"
+        # Le fallback est activé explicitement via env, ou automatiquement hors prod.
+        mode = str(os.getenv("SPECULA_MODE", "prod")).strip().lower()
+        env_flag = os.getenv("SPECULA_ENABLE_DETECTIONS_FALLBACK", "").strip().lower()
+        if env_flag in ("true", "1", "yes"):
+            self.enable_detections_fallback = True
+        elif env_flag in ("false", "0", "no"):
+            self.enable_detections_fallback = False
+        else:
+            # Par défaut : toujours actif (les incidents corrélés restent prioritaires)
+            self.enable_detections_fallback = True
 
     def _detection_to_incident(self, detection: dict[str, Any]) -> dict[str, Any]:
         """
@@ -113,20 +126,36 @@ class UnifiedIncidentsService:
             "raw_detection": detection,
         }
 
-    def list_incidents(self, limit: int = 50) -> list[dict[str, Any]]:
-        """
-        Récupère la liste des incidents à partir des détections agrégées.
-        Active le fallback en fonction du mode et des données disponibles.
-        """
-        fetch_limit = max(limit * 20, 200) if limit > 0 else 200
+    def _compute_incidents(self, fetch_limit: int) -> list[dict[str, Any]]:
         detections = self.aggregator.list_detections(limit=fetch_limit)
         incidents = self.correlator.correlate(detections)
-
-        # Si aucun incident n'a été trouvé, on utilise les détections comme fallback
         if not incidents and detections and self.enable_detections_fallback:
             incidents = [self._detection_to_incident(item) for item in detections]
+        return incidents
+
+    def list_incidents(self, limit: int = 50) -> list[dict[str, Any]]:
+        """
+        Récupère la liste des incidents avec cache TTL.
+        """
+        fetch_limit = max(limit * 20, 200) if limit > 0 else 200
+        now = time.monotonic()
+
+        with _cache_lock:
+            if now - _incident_cache["ts"] < _CACHE_TTL and _incident_cache["incidents"]:
+                incidents = _incident_cache["incidents"]
+            else:
+                incidents = self._compute_incidents(fetch_limit)
+                _incident_cache["incidents"] = incidents
+                _incident_cache["overview"] = None  # invalide l'overview aussi
+                _incident_cache["ts"] = now
 
         return incidents[:limit] if limit > 0 else incidents
+
+    def invalidate_cache(self) -> None:
+        with _cache_lock:
+            _incident_cache["ts"] = 0.0
+            _incident_cache["incidents"] = []
+            _incident_cache["overview"] = None
 
     def get_overview(self, limit: int = 50) -> dict[str, Any]:
         """

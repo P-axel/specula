@@ -9,6 +9,12 @@ class SuricataEveConnector:
     """
     Connector simple pour lire eve.json de Suricata en JSON lines.
 
+    Lecture incrémentale : on mémorise le dernier offset lu pour
+    ne relire que les nouvelles lignes à chaque appel.
+    """
+    """
+    Connector simple pour lire eve.json de Suricata en JSON lines.
+
     Objectifs:
     - lecture robuste ligne par ligne
     - filtrage par event_type
@@ -18,6 +24,8 @@ class SuricataEveConnector:
 
     def __init__(self, eve_path: str | Path) -> None:
         self.eve_path = Path(eve_path)
+        self._offset: int = 0          # dernier octet lu
+        self._inode: int = -1          # détecte rotation du fichier
 
     def exists(self) -> bool:
         return self.eve_path.exists() and self.eve_path.is_file()
@@ -40,7 +48,9 @@ class SuricataEveConnector:
 
         events: List[Dict[str, Any]] = []
 
-        for event in self.iter_events(event_types=event_types):
+        # incremental=False : les API on-demand lisent tout le fichier.
+        # L'incrémental est réservé à un éventuel background poller.
+        for event in self.iter_events(event_types=event_types, incremental=False):
             events.append(event)
 
         if len(events) <= limit:
@@ -51,18 +61,35 @@ class SuricataEveConnector:
     def iter_events(
         self,
         event_types: Optional[List[str]] = None,
+        incremental: bool = True,
     ) -> Iterable[Dict[str, Any]]:
         """
-        Itère sur tous les événements valides de eve.json.
-        Ignore les lignes vides ou corrompues.
+        Itère sur les événements de eve.json.
+
+        Si incremental=True (défaut), ne lit que les nouvelles lignes
+        depuis le dernier appel. Détecte aussi la rotation du fichier.
         """
         if not self.exists():
             return
 
         normalized_event_types = set(event_types or [])
+        stat = self.eve_path.stat()
+        current_inode = stat.st_ino
 
-        with self.eve_path.open("r", encoding="utf-8", errors="replace") as handle:
-            for _, raw_line in enumerate(handle, start=1):
+        # Rotation détectée ou premier appel
+        if current_inode != self._inode:
+            self._inode = current_inode
+            self._offset = 0
+
+        # Si le fichier a rétréci (truncate), on repart du début
+        if incremental and self._offset > stat.st_size:
+            self._offset = 0
+
+        with self.eve_path.open("rb") as handle:
+            if incremental:
+                handle.seek(self._offset)
+
+            for raw_line in handle:
                 line = raw_line.strip()
                 if not line:
                     continue
@@ -80,6 +107,9 @@ class SuricataEveConnector:
                     continue
 
                 yield payload
+
+            if incremental:
+                self._offset = handle.tell()
 
     def get_status(self) -> Dict[str, Any]:
         """

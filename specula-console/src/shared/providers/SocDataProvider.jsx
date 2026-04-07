@@ -230,11 +230,6 @@ export function SocDataProvider({ children }) {
           ? detectionsResponse
           : extractCollection(detectionsResponse);
 
-        console.log("socIncidentsResponse", socIncidentsResponse);
-        console.log("resolved incidentsRaw", nextIncidents);
-        console.log("detectionsResponse", detectionsResponse);
-        console.log("resolved detections fallback", nextDetections);
-
         applyAllData({
           incidentsRaw: nextIncidents.length ? nextIncidents : nextDetections,
           alertsRaw: nextAlerts,
@@ -253,6 +248,7 @@ export function SocDataProvider({ children }) {
           detections: nextDetections,
         });
       } catch (err) {
+        // eslint-disable-next-line no-console
         console.error("loadSocData error", err);
         setError(err?.message || "Impossible de charger les données SOC.");
       } finally {

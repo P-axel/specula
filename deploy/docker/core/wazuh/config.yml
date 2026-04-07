@@ -1,15 +1,17 @@
 # Configuration pour la génération des certificats Wazuh
 # Utilisé par wazuh/wazuh-certs-generator:0.0.2
+# Note : le générateur attend des IPs. TLS hostname verification est
+# désactivée (WAZUH_VERIFY_TLS=false), donc 127.0.0.1 suffit.
 
 nodes:
   indexer:
     - name: wazuh-indexer
-      ip: wazuh-indexer
+      ip: 127.0.0.1
 
   server:
     - name: wazuh-manager
-      ip: wazuh-manager
+      ip: 127.0.0.1
 
   dashboard:
     - name: wazuh-dashboard
-      ip: wazuh-dashboard
+      ip: 127.0.0.1
