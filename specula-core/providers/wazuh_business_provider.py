@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, List, Dict
+from copy import deepcopy
+from datetime import datetime
+from typing import Any, Dict, List
 
 from providers.base_provider import DetectionProvider
 from services.transformation.detections_service import DetectionsService
@@ -18,69 +20,67 @@ class WazuhBusinessProvider(DetectionProvider):
     - enrichissement
     - scoring
     - déduplication
-
-    ⚠️ Ne retourne PAS les données brutes Wazuh.
     """
 
     name = "wazuh"
 
-    def __init__(self) -> None:
-        self.detections_service = DetectionsService()
+    def __init__(self, detections_service: DetectionsService | None = None) -> None:
+        self.detections_service = detections_service or DetectionsService()
 
-    def list_detections(self, limit: int = 200, offset: int = 0) -> List[Dict[str, Any]]:
+    def list_detections(self, limit: int = 200) -> List[Dict[str, Any]]:
+        if limit < 1:
+            raise ValueError("limit must be >= 1")
+
         try:
             detections = self.detections_service.list_detections()
-        except Exception as e:
-            logger.error("Failed to retrieve detections from service: %s", e, exc_info=True)
-            return []
+        except Exception:
+            logger.exception("Failed to retrieve detections from service")
+            raise
 
         if not detections:
             return []
 
-        # tri par timestamp décroissant (plus récent en premier)
-        detections = self._sort_by_timestamp(detections)
+        normalized = [self._ensure_minimum_fields(deepcopy(d)) for d in detections]
+        normalized = self._sort_by_timestamp(normalized)
 
-        # enrichissement léger (fallback sécurité)
-        detections = [self._ensure_minimum_fields(d) for d in detections]
-
-        if limit > 0:
-            detections = detections[:limit]
-
-        return detections
+        return normalized[:limit]
 
     def _sort_by_timestamp(self, detections: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        def get_ts(d: Dict[str, Any]) -> str:
-            return (
-                d.get("timestamp")
-                or d.get("event", {}).get("created")
-                or ""
-            )
+        def parse_ts(d: Dict[str, Any]) -> datetime:
+            value = d.get("timestamp") or d.get("event", {}).get("created")
+            if not value or not isinstance(value, str):
+                return datetime.min
+            try:
+                return datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                return datetime.min
 
-        try:
-            return sorted(detections, key=get_ts, reverse=True)
-        except Exception:
-            logger.warning("Failed to sort detections by timestamp")
-            return detections
+        return sorted(detections, key=parse_ts, reverse=True)
 
     def _ensure_minimum_fields(self, detection: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Garantit un minimum exploitable pour le frontend / corrélation.
-        """
-        event = detection.setdefault("event", {})
-        risk = detection.setdefault("risk", {})
-        detection_block = detection.setdefault("detection", {})
+        event = detection.get("event")
+        if not isinstance(event, dict):
+            event = {}
+            detection["event"] = event
 
-        # event
+        risk = detection.get("risk")
+        if not isinstance(risk, dict):
+            risk = {}
+            detection["risk"] = risk
+
+        detection_block = detection.get("detection")
+        if not isinstance(detection_block, dict):
+            detection_block = {}
+            detection["detection"] = detection_block
+
         event.setdefault("kind", "alert")
         event.setdefault("category", "security_event")
         event.setdefault("severity", "info")
 
-        # detection
         detection_block.setdefault("engine", "wazuh")
         detection_block.setdefault("provider", "wazuh")
         detection_block.setdefault("status", "observed")
 
-        # risk
         risk.setdefault("score", 0)
         risk.setdefault("level", "info")
         risk.setdefault("confidence", 0.5)

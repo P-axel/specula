@@ -8,10 +8,8 @@ from api.dependencies import (
     alerts_service,
     assets_service,
     detections_service,
-    network_alerts_service,
-    network_incidents_service,
-    themes_service,
     unified_events_service,
+    unified_incidents_service,
 )
 from specula_logging.logger import get_logger
 
@@ -52,18 +50,21 @@ def _dashboard_detection_dicts() -> list[dict]:
         return []
 
 
+def _dashboard_incident_dicts() -> list[dict]:
+    try:
+        return _to_dict_list(unified_incidents_service.list_incidents(limit=500))
+    except Exception as exc:
+        logger.exception("Erreur récupération incidents dashboard: %s", exc)
+        return []
+
+
 @router.get("/dashboard/overview")
 def dashboard_overview() -> dict:
     assets = _to_dict_list(assets_service.list_assets())
     alerts = _to_dict_list(alerts_service.list_alerts())
     detections = _dashboard_detection_dicts()
+    incidents = _dashboard_incident_dicts()
     events = _to_dict_list(unified_events_service.list_event_dicts(limit=500))
-
-    network_detections = _to_dict_list(themes_service.list_network_detections(limit=500))
-    network_alerts = _to_dict_list(network_alerts_service.list_network_alerts(limit=500))
-    network_incidents = _to_dict_list(
-        network_incidents_service.list_network_incidents(limit=500)
-    )
 
     active_assets = [
         asset for asset in assets
@@ -82,6 +83,16 @@ def dashboard_overview() -> dict:
     critical_alerts = [
         alert for alert in alerts
         if "critical" in str(alert.get("severity", "")).lower()
+    ]
+
+    open_incidents = [
+        incident for incident in incidents
+        if str(incident.get("status", "")).lower() == "open"
+    ]
+
+    critical_incidents = [
+        incident for incident in incidents
+        if "critical" in str(incident.get("severity", "")).lower()
     ]
 
     healthy_assets = [
@@ -112,27 +123,28 @@ def dashboard_overview() -> dict:
             "alerts_total": len(alerts),
             "alerts_open": len(open_alerts),
             "alerts_critical": len(critical_alerts),
+            "incidents_total": len(incidents),
+            "incidents_open": len(open_incidents),
+            "incidents_critical": len(critical_incidents),
         },
         "network": {
-            "detections_total": len(network_detections),
-            "alerts_total": len(network_alerts),
-            "incidents_total": len(network_incidents),
+            "detections_total": len(detections),
+            "alerts_total": len(alerts),
+            "incidents_total": len(incidents),
         },
     }
 
 
 @router.get("/dashboard/network-overview")
 def dashboard_network_overview() -> dict:
-    theme_items = _to_dict_list(themes_service.list_network_detections(limit=500))
-    alert_items = _to_dict_list(network_alerts_service.list_network_alerts(limit=500))
-    incident_items = _to_dict_list(
-        network_incidents_service.list_network_incidents(limit=500)
-    )
+    detections = _dashboard_detection_dicts()
+    alerts = _to_dict_list(alerts_service.list_alerts())
+    incidents = _dashboard_incident_dicts()
 
     return {
-        "detections_total": len(theme_items),
-        "alerts_total": len(alert_items),
-        "incidents_total": len(incident_items),
+        "detections_total": len(detections),
+        "alerts_total": len(alerts),
+        "incidents_total": len(incidents),
     }
 
 

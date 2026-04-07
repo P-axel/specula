@@ -21,8 +21,8 @@ class WazuhClient:
         verify_ssl: Optional[bool] = None,
         timeout: Optional[int] = None,
         auth_type: str = "token",  # "token" pour Wazuh API, "basic" pour l'indexer
-        max_retries: int = 10,
-        retry_delay_seconds: int = 5,
+        max_retries: int = 3,
+        retry_delay_seconds: int = 2,
     ) -> None:
         self.base_url = (base_url or settings.wazuh_base_url).rstrip("/")
         self.username = username or settings.wazuh_username

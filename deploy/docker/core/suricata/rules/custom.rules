@@ -1,1 +1,36 @@
-alert http any any -> any any (msg:"SPECULA TEST HTTP traffic detected"; sid:1000001; rev:1;)
+# =============================================================
+# Specula — Règles de détection réseau personnalisées
+# =============================================================
+# Ces règles complètent les règles Suricata standards.
+# Elles couvrent les menaces réseau les plus courantes.
+# =============================================================
+
+# ─── Scans de ports ──────────────────────────────────────────
+alert tcp any any -> $HOME_NET any (msg:"SCAN Port scan TCP SYN sweep"; flags:S,12; threshold: type both, track by_src, count 20, seconds 3; classtype:network-scan; sid:9000001; rev:1;)
+alert tcp any any -> $HOME_NET any (msg:"SCAN Nmap OS detection"; flags:SFPU; classtype:network-scan; sid:9000002; rev:1;)
+alert udp any any -> $HOME_NET any (msg:"SCAN UDP port sweep"; threshold: type both, track by_src, count 20, seconds 3; classtype:network-scan; sid:9000003; rev:1;)
+
+# ─── Brute force SSH ─────────────────────────────────────────
+alert tcp any any -> $HOME_NET 22 (msg:"BRUTE SSH brute force attempt"; flow:to_server,established; content:"SSH-"; threshold: type both, track by_src, count 5, seconds 60; classtype:attempted-admin; sid:9001001; rev:1;)
+
+# ─── Trafic DNS suspect ──────────────────────────────────────
+alert dns any any -> any any (msg:"DNS Très longue requête (exfiltration potentielle)"; dns.query; content:"."; byte_test:0,>,60,0,relative; classtype:policy-violation; sid:9002001; rev:1;)
+alert dns any any -> any any (msg:"DNS Requêtes massives (DGA ou tunneling)"; threshold: type both, track by_src, count 100, seconds 10; classtype:policy-violation; sid:9002002; rev:1;)
+
+# ─── Connexions suspectes vers des ports inhabituels ─────────
+alert tcp $HOME_NET any -> any 4444 (msg:"C2 Connexion vers port Metasploit par défaut (4444)"; flow:to_server; classtype:trojan-activity; sid:9003001; rev:1;)
+alert tcp $HOME_NET any -> any 1337 (msg:"C2 Connexion vers port hacker classique (1337)"; flow:to_server; classtype:trojan-activity; sid:9003002; rev:1;)
+alert tcp $HOME_NET any -> any 31337 (msg:"C2 Connexion vers port backdoor classique (31337)"; flow:to_server; classtype:trojan-activity; sid:9003003; rev:1;)
+alert tcp $HOME_NET any -> any 6667 (msg:"C2 Connexion IRC (possible botnet)"; flow:to_server; classtype:trojan-activity; sid:9003004; rev:1;)
+
+# ─── Tentatives d'exploitation web ──────────────────────────
+alert http any any -> $HOME_NET any (msg:"WEB SQL injection attempt (UNION SELECT)"; flow:to_server,established; http.uri; content:"UNION"; nocase; content:"SELECT"; nocase; within:20; classtype:web-application-attack; sid:9004001; rev:1;)
+alert http any any -> $HOME_NET any (msg:"WEB Path traversal attempt (../../)"; flow:to_server,established; http.uri; content:"../"; classtype:web-application-attack; sid:9004002; rev:1;)
+alert http any any -> $HOME_NET any (msg:"WEB Shell upload attempt (.php upload)"; flow:to_server,established; http.uri; content:".php"; nocase; http.method; content:"POST"; classtype:web-application-attack; sid:9004003; rev:1;)
+
+# ─── Protocoles non chiffrés avec données sensibles ─────────
+alert ftp any any -> $HOME_NET any (msg:"POLICY FTP connexion non chiffrée"; flow:to_server,established; content:"USER "; classtype:policy-violation; sid:9005001; rev:1;)
+alert tcp any any -> $HOME_NET 23 (msg:"POLICY Connexion Telnet (protocole non chiffré)"; flow:to_server; classtype:policy-violation; sid:9005002; rev:1;)
+
+# ─── ICMP flood ──────────────────────────────────────────────
+alert icmp any any -> $HOME_NET any (msg:"DOS ICMP flood (ping flood)"; itype:8; threshold: type both, track by_src, count 50, seconds 5; classtype:attempted-dos; sid:9006001; rev:1;)

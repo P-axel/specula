@@ -1,51 +1,64 @@
 services:
+
+  # ═══════════════════════════════════════════════════════════════
+  # Stack principale (toujours active)
+  # ═══════════════════════════════════════════════════════════════
+
+  specula-suricata:
+    image: jasonish/suricata:latest
+    container_name: specula-suricata
+    network_mode: host
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      TZ: ${TZ:-Europe/Paris}
+    command:
+      - -i
+      - ${SURICATA_INTERFACE:-eth0}
+    volumes:
+      - ./suricata/etc:/etc/suricata:ro
+      - ./suricata/rules:/var/lib/suricata/rules:ro
+      - ../../../runtime/logs/suricata:/var/log/suricata
+
   specula-backend:
     build:
       context: ../../..
       dockerfile: specula-core/Dockerfile
+    container_name: specula-backend
     working_dir: /app/specula-core
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"
-    labels:
-      - "specula.service=backend"
-      - "specula.api=http://localhost:8000"
-      - "specula.docs=http://localhost:8000/docs"
-      - "specula.redoc=http://localhost:8000/redoc"
     volumes:
       - ../../../specula-core:/app/specula-core
-      - ../../../requirements.txt:/app/requirements.txt:ro
       - ../../../.env:/app/.env:ro
       - ../../../runtime/logs/suricata:/var/log/suricata:ro
     env_file:
       - ../../../.env
     environment:
-      SPECULA_API_BASE_URL: http://localhost:8000
       SPECULA_SURICATA_EVE_PATH: /var/log/suricata/eve.json
     restart: unless-stopped
-    depends_on:
-      specula-suricata:
-        condition: service_started
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
       - specula-net
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/docs')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
       interval: 10s
       timeout: 5s
-      retries: 12
-      start_period: 15s
+      retries: 15
+      start_period: 20s
 
   specula-frontend:
     build:
       context: ../../../specula-console
       dockerfile: Dockerfile
+    container_name: specula-frontend
     ports:
       - "5173:5173"
-    labels:
-      - "specula.service=frontend"
-      - "specula.console=http://localhost:5173"
     volumes:
       - ../../../specula-console:/app
       - /app/node_modules
@@ -64,34 +77,112 @@ services:
     restart: unless-stopped
     networks:
       - specula-net
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:5173"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 15s
 
-  specula-suricata:
-    image: jasonish/suricata:latest
-    network_mode: host
+  # ═══════════════════════════════════════════════════════════════
+  # Stack Wazuh (--profile wazuh)
+  # Démarre avec : ./start-specula.sh --wazuh
+  # ═══════════════════════════════════════════════════════════════
+
+  wazuh-indexer:
+    profiles: [wazuh]
+    image: wazuh/wazuh-indexer:4.7.2
+    container_name: wazuh-indexer
+    hostname: wazuh-indexer
     restart: unless-stopped
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-      - SYS_NICE
+    ports:
+      - "9200:9200"
     environment:
-      TZ: ${TZ:-Europe/Paris}
-    command:
-      - -i
-      - ${SURICATA_INTERFACE:-enx00e04c394310}
-      - -c
-      - /etc/suricata/suricata.yaml
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+      bootstrap.memory_lock: "true"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
     volumes:
-      - ./suricata/etc:/etc/suricata
-      - ./suricata/rules:/var/lib/suricata/rules
-      - ../../../runtime/logs/suricata:/var/log/suricata
+      - wazuh-indexer-data:/var/lib/wazuh-indexer
+      - ../../../runtime/wazuh/certs/root-ca.pem:/usr/share/wazuh-indexer/certs/root-ca.pem:ro
+      - ../../../runtime/wazuh/certs/wazuh-indexer-key.pem:/usr/share/wazuh-indexer/certs/wazuh-indexer.key:ro
+      - ../../../runtime/wazuh/certs/wazuh-indexer.pem:/usr/share/wazuh-indexer/certs/wazuh-indexer.pem:ro
+      - ../../../runtime/wazuh/certs/admin.pem:/usr/share/wazuh-indexer/certs/admin.pem:ro
+      - ../../../runtime/wazuh/certs/admin-key.pem:/usr/share/wazuh-indexer/certs/admin.key:ro
+      - ./wazuh/opensearch.yml:/usr/share/wazuh-indexer/opensearch.yml:ro
+      - ./wazuh/internal_users.yml:/usr/share/wazuh-indexer/opensearch-security/internal_users.yml:ro
+    networks:
+      - specula-net
+
+  wazuh-manager:
+    profiles: [wazuh]
+    image: wazuh/wazuh-manager:4.7.2
+    container_name: wazuh-manager
+    hostname: wazuh-manager
+    restart: unless-stopped
+    ports:
+      - "55000:55000"
+      - "1514:1514"
+      - "1515:1515"
+    environment:
+      INDEXER_URL: https://wazuh-indexer:9200
+      INDEXER_USERNAME: ${WAZUH_INDEXER_USERNAME:-admin}
+      INDEXER_PASSWORD: ${WAZUH_INDEXER_PASSWORD:-SecretPassword}
+      FILEBEAT_SSL_VERIFICATION_MODE: none
+      SSL_CERTIFICATE_AUTHORITIES: ""
+      SSL_CERTIFICATE: ""
+      SSL_KEY: ""
+    volumes:
+      - wazuh-manager-etc:/var/ossec/etc
+      - wazuh-manager-logs:/var/ossec/logs
+      - wazuh-manager-queue:/var/ossec/queue
+      - wazuh-manager-multigroups:/var/ossec/var/multigroups
+      - wazuh-manager-integrations:/var/ossec/integrations
+      - wazuh-manager-active-response:/var/ossec/active-response/bin
+      - wazuh-manager-agentless:/var/ossec/agentless
+      - wazuh-manager-wodles:/var/ossec/wodles
+      - filebeat-etc:/etc/filebeat
+      - filebeat-var:/var/lib/filebeat
+    depends_on:
+      - wazuh-indexer
+    networks:
+      - specula-net
+
+  # Agent Wazuh pour la machine hôte — surveille les logs et processus du host
+  wazuh-agent:
+    profiles: [wazuh]
+    build:
+      context: ./wazuh
+      dockerfile: agent.Dockerfile
+    container_name: wazuh-agent-host
+    hostname: ${HOSTNAME:-specula-host}
+    restart: unless-stopped
+    pid: host
+    environment:
+      WAZUH_MANAGER: wazuh-manager
+      WAZUH_AGENT_NAME: ${HOSTNAME:-specula-host}
+    volumes:
+      - /var/log:/host/var/log:ro
+      - /etc:/host/etc:ro
+      - /proc:/host/proc:ro
+    depends_on:
+      - wazuh-manager
+    networks:
+      - specula-net
 
 networks:
   specula-net:
-    external: true
+    driver: bridge
     name: specula-net
+
+volumes:
+  wazuh-indexer-data:
+  wazuh-manager-etc:
+  wazuh-manager-logs:
+  wazuh-manager-queue:
+  wazuh-manager-multigroups:
+  wazuh-manager-integrations:
+  wazuh-manager-active-response:
+  wazuh-manager-agentless:
+  wazuh-manager-wodles:
+  filebeat-etc:
+  filebeat-var:
