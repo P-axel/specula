@@ -4,8 +4,6 @@ Specula est une plateforme de détection et d'analyse d'événements de sécurit
 
 > **Statut : MVP fonctionnel — en développement actif.**
 
-Site : https://p-axel.github.io/
-
 ---
 
 ## Pourquoi Specula ?
