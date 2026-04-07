@@ -99,19 +99,31 @@ _start-wazuh: wazuh-certs
 	@echo ""
 
 # ─── Init sécurité indexer Wazuh (securityadmin) ───────────────
+# Le hash est généré dynamiquement dans le container depuis WAZUH_INDEXER_PASSWORD
+# pour éviter les problèmes d'inode avec les fichiers bind-montés en :ro.
 wazuh-security-init:
 	@echo "[specula] Application de la configuration de sécurité OpenSearch..."
-	@docker exec -u root wazuh-indexer bash -c "\
+	@set -a; . ./$(ENV_FILE); set +a; \
+	INDEXER_PWD=$${WAZUH_INDEXER_PASSWORD:-SecretPassword}; \
+	docker exec -u root -e INDEXER_PWD="$$INDEXER_PWD" wazuh-indexer bash -c ' \
 		export JAVA_HOME=/usr/share/wazuh-indexer/jdk; \
-		cp /usr/share/wazuh-indexer/certs/admin.key /tmp/admin-key-pkcs8.pem 2>/dev/null || \
-		cp /usr/share/wazuh-indexer/certs/admin-key.pem /tmp/admin-key-pkcs8.pem 2>/dev/null || true; \
+		HASH=$$( /usr/share/wazuh-indexer/plugins/opensearch-security/tools/hash.sh \
+		  -p "$$INDEXER_PWD" 2>/dev/null | grep -v "WARNING\|^\*" | tail -1 ); \
+		cp /usr/share/wazuh-indexer/certs/admin.key /tmp/admin-key.pem 2>/dev/null || \
+		cp /usr/share/wazuh-indexer/certs/admin-key.pem /tmp/admin-key.pem 2>/dev/null || true; \
+		printf "%s\n" "---" "_meta:" "  type: \"internalusers\"" "  config_version: 2" \
+		  "admin:" "  hash: \"$$HASH\"" "  reserved: true" "  backend_roles:" \
+		  "    - \"admin\"" "  description: \"Wazuh indexer admin\"" \
+		  "kibanaserver:" \
+		  "  hash: \"\$$2a\$$12\$$4AcgAt3xwOWadA5s5blL6ev39OXDNhmOesEoo33eZtrq2N0YrU3H.\"" \
+		  "  reserved: true" "  description: \"OpenSearch Dashboards user\"" \
+		  > /tmp/internal_users.yml; \
 		/usr/share/wazuh-indexer/plugins/opensearch-security/tools/securityadmin.sh \
-		  -cd /usr/share/wazuh-indexer/opensearch-security/ \
-		  -icl -nhnv \
+		  -f /tmp/internal_users.yml -t internalusers -icl -nhnv \
 		  -cacert /usr/share/wazuh-indexer/certs/root-ca.pem \
 		  -cert /usr/share/wazuh-indexer/certs/admin.pem \
-		  -key /tmp/admin-key-pkcs8.pem \
-		  -h localhost -p 9200 2>&1 | grep -E 'SUCC:|ERR:|Done'" || \
+		  -key /tmp/admin-key.pem \
+		  -h localhost -p 9200 2>&1 | grep -E "SUCC:|ERR:|Done" ' || \
 	echo "[specula] WARN: securityadmin a échoué — credentials indexer peut-être déjà configurés."
 
 # ─── Reconstruction ────────────────────────────────────────────
