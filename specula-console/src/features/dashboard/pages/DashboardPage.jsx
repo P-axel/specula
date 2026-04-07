@@ -92,48 +92,10 @@ function OverviewCard({ tone = "info", label, value, hint }) {
 
 function StatCard({ title, value, hint }) {
   return (
-    <div
-      style={{
-        padding: "18px",
-        borderRadius: "16px",
-        background:
-          "linear-gradient(180deg, rgba(18, 31, 56, 0.96), rgba(12, 23, 43, 0.96))",
-        border: "1px solid rgba(120, 162, 255, 0.18)",
-        boxShadow: "0 12px 28px rgba(0, 0, 0, 0.18)",
-      }}
-    >
-      <div
-        style={{
-          fontSize: "0.92rem",
-          color: "rgba(196, 210, 230, 0.78)",
-          marginBottom: "10px",
-        }}
-      >
-        {title}
-      </div>
-
-      <div
-        style={{
-          fontSize: "2rem",
-          fontWeight: 700,
-          color: "#eaf2ff",
-        }}
-      >
-        {value}
-      </div>
-
-      {hint ? (
-        <div
-          style={{
-            marginTop: "8px",
-            fontSize: "0.85rem",
-            color: "rgba(196, 210, 230, 0.64)",
-            lineHeight: 1.4,
-          }}
-        >
-          {hint}
-        </div>
-      ) : null}
+    <div className="dashboard-stat-card">
+      <div className="dashboard-stat-card__label">{title}</div>
+      <div className="dashboard-stat-card__value">{value}</div>
+      {hint ? <div className="dashboard-stat-card__hint">{hint}</div> : null}
     </div>
   );
 }
@@ -319,14 +281,7 @@ export default function DashboardPage() {
 
         <MetricCards items={headlineCards} />
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: "16px",
-            marginTop: "16px",
-          }}
-        >
+        <div className="dashboard-overview-grid" style={{ marginTop: "12px" }}>
           <StatCard
             title="Incidents connus"
             value={localStats.incidentsCount}

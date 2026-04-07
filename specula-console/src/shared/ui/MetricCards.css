@@ -1,65 +1,53 @@
 .metric-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
 }
 
 .metric-card {
   position: relative;
-  border-radius: 1rem;
+  border-radius: 6px;
   padding: 1rem 1.2rem;
-  background: linear-gradient(180deg, rgba(16, 25, 44, 0.95) 0%, rgba(13, 21, 38, 0.95) 100%);
-  border: 1px solid rgba(148, 163, 184, 0.14);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.2);
-  transition: all 0.18s ease;
+  background: var(--c-bg-panel-2, #041320);
+  border: 1px solid var(--c-border, #0c2d3d);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+  overflow: hidden;
 }
 
 .metric-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(125, 179, 255, 0.3);
+  border-color: rgba(0, 229, 255, 0.25);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 16px rgba(0, 229, 255, 0.06);
 }
 
+/* Top accent bar */
 .metric-card::before {
-  content: "";
+  content: '';
   position: absolute;
   inset: 0 0 auto 0;
-  height: 3px;
-  opacity: 0.95;
+  height: 2px;
 }
 
-/* tones */
-
-.metric-card--primary::before {
-  background: #7db3ff;
-}
-
-.metric-card--success::before {
-  background: #4ade80;
-}
-
-.metric-card--warning::before {
-  background: #facc15;
-}
-
-.metric-card--danger::before {
-  background: #f87171;
-}
-
-.metric-card--info::before {
-  background: #60a5fa;
-}
-
-/* content */
+.metric-card--primary::before { background: var(--c-cyan, #00e5ff); box-shadow: 0 0 8px var(--c-cyan, #00e5ff); }
+.metric-card--success::before { background: var(--c-green, #39ff14); box-shadow: 0 0 8px var(--c-green, #39ff14); }
+.metric-card--warning::before { background: var(--c-amber, #ffaa00); box-shadow: 0 0 8px var(--c-amber, #ffaa00); }
+.metric-card--danger::before  { background: var(--c-red, #ff2244);   box-shadow: 0 0 8px var(--c-red, #ff2244); }
+.metric-card--info::before    { background: var(--c-teal, #00ffcc);  box-shadow: 0 0 8px var(--c-teal, #00ffcc); }
 
 .metric-card__label {
-  font-size: 0.8rem;
-  color: #94a3b8;
-  margin-bottom: 0.35rem;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--c-text-dim, #3d6070);
+  margin-bottom: 0.5rem;
   display: block;
 }
 
 .metric-card__value {
-  font-size: 1.6rem;
+  font-family: 'Orbitron', monospace;
+  font-size: 1.7rem;
   font-weight: 700;
-  color: #e2e8f0;
+  color: var(--c-text-bright, #e0f4ff);
 }
