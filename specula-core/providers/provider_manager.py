@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, Any, Optional
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from providers.wazuh_business_provider import WazuhBusinessProvider
 from providers.suricata_business_provider import SuricataBusinessProvider
@@ -22,7 +23,6 @@ class ProviderManager:
         limit: int = 200,
         offset: int = 0,
     ) -> List[Dict[str, Any]]:
-
         if source:
             provider = self.providers.get(source)
 
@@ -31,46 +31,36 @@ class ProviderManager:
                 return []
 
             try:
-                try:
-                    return provider.list_detections(limit=limit, offset=offset)
-                except TypeError:
-                    data = provider.list_detections(limit=limit + offset)
-                    return data[offset:] if offset > 0 else data
-            except Exception as e:
-                logger.error("Provider %s failed: %s", source, e, exc_info=True)
+                data = provider.list_detections(limit=limit + offset)
+                return data[offset:offset + limit]
+            except Exception:
+                logger.exception("Provider %s failed", source)
                 return []
 
         detections: List[Dict[str, Any]] = []
 
         for name, provider in self.providers.items():
             try:
-                try:
-                    data = provider.list_detections(limit=limit, offset=0)
-                except TypeError:
-                    data = provider.list_detections(limit=limit)
+                data = provider.list_detections(limit=limit + offset)
                 detections.extend(data)
-            except Exception as e:
-                logger.error("Provider %s failed: %s", name, e, exc_info=True)
+            except Exception:
+                logger.exception("Provider %s failed", name)
                 continue
 
-        # tri global
-        detections.sort(
-            key=lambda d: str(
-                d.get("timestamp")
-                or d.get("created_at")
-                or ""
-            ),
-            reverse=True,
-        )
+        detections.sort(key=self._sort_key, reverse=True)
+        return detections[offset:offset + limit]
 
-        # pagination globale
-        if offset > 0:
-            detections = detections[offset:]
+    @staticmethod
+    def _sort_key(item: Dict[str, Any]) -> datetime:
+        raw_value = item.get("timestamp") or item.get("created_at") or ""
 
-        if limit > 0:
-            detections = detections[:limit]
+        if not isinstance(raw_value, str) or not raw_value.strip():
+            return datetime.min
 
-        return detections
+        try:
+            return datetime.fromisoformat(raw_value.strip().replace("Z", "+00:00"))
+        except ValueError:
+            return datetime.min
 
     def get_status(self) -> Dict[str, Any]:
         status = {}
@@ -78,10 +68,10 @@ class ProviderManager:
         for name, provider in self.providers.items():
             try:
                 status[name] = provider.get_status()
-            except Exception as e:
+            except Exception as exc:
                 status[name] = {
                     "status": "error",
-                    "message": str(e),
+                    "message": str(exc),
                 }
 
         return status

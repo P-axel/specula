@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, List, Dict
+from copy import deepcopy
+from datetime import datetime
+from typing import Any, Dict, List
 
 from providers.base_provider import DetectionProvider
 from services.transformation.detections_service import DetectionsService
@@ -22,35 +24,56 @@ class SuricataBusinessProvider(DetectionProvider):
 
     name = "suricata"
 
-    def __init__(self) -> None:
-        self.detections_service = DetectionsService()
+    def __init__(self, detections_service: DetectionsService | None = None) -> None:
+        self.detections_service = detections_service or DetectionsService()
 
-    def list_detections(self, limit: int = 200, offset: int = 0) -> List[Dict[str, Any]]:
+    def list_detections(
+        self,
+        limit: int = 200,
+        offset: int = 0,
+    ) -> List[Dict[str, Any]]:
+        if limit < 1:
+            raise ValueError("limit must be >= 1")
+        if offset < 0:
+            raise ValueError("offset must be >= 0")
+
         try:
             detections = self.detections_service.list_detections(source="suricata")
-        except Exception as e:
-            logger.error("Failed to retrieve Suricata detections: %s", e, exc_info=True)
-            return []
+        except Exception:
+            logger.exception("Failed to retrieve Suricata detections")
+            raise
 
         if not detections:
             return []
 
-        detections = self._sort_by_timestamp(detections)
-        detections = [self._enrich_network_context(d) for d in detections]
+        enriched = [self._enrich_network_context(deepcopy(d)) for d in detections]
+        enriched = self._sort_by_timestamp(enriched)
 
-        if limit > 0:
-            detections = detections[:limit]
+        if offset > 0:
+            enriched = enriched[offset:]
 
-        return detections
+        return enriched[:limit]
 
     def _sort_by_timestamp(self, detections: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        def get_ts(d: Dict[str, Any]) -> str:
-            return d.get("timestamp") or ""
+        def parse_ts(d: Dict[str, Any]) -> datetime:
+            value = d.get("timestamp")
+            if not value or not isinstance(value, str):
+                return datetime.min
 
+            try:
+                return datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                return datetime.min
+
+        return sorted(detections, key=parse_ts, reverse=True)
+
+    def _safe_score(self, value: Any, default: int = 0) -> int:
         try:
-            return sorted(detections, key=get_ts, reverse=True)
-        except Exception:
-            return detections
+            if value is None:
+                return default
+            return int(value)
+        except (TypeError, ValueError):
+            return default
 
     def _enrich_network_context(self, detection: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -62,12 +85,12 @@ class SuricataBusinessProvider(DetectionProvider):
         detection_block = detection.setdefault("detection", {})
         risk = detection.setdefault("risk", {})
 
-        # classification simple
         category = event.get("category")
+        current_score = self._safe_score(risk.get("score"), 0)
 
         if category == "network_scan":
             detection_block["threat"] = "reconnaissance"
-            risk["score"] = max(risk.get("score", 0), 60)
+            risk["score"] = max(current_score, 60)
 
         elif category == "network_dns":
             detection_block["threat"] = "dns_activity"
@@ -77,19 +100,17 @@ class SuricataBusinessProvider(DetectionProvider):
 
         elif category == "malware":
             detection_block["threat"] = "malware_communication"
-            risk["score"] = max(risk.get("score", 0), 80)
+            risk["score"] = max(current_score, 80)
 
-        # direction logique
-        if network.get("direction") == "to_server":
+        direction = network.get("direction")
+        if direction == "to_server":
             detection["flow"] = "inbound"
-        elif network.get("direction") == "to_client":
+        elif direction == "to_client":
             detection["flow"] = "outbound"
 
-        # fallback propre
         detection_block.setdefault("engine", "suricata")
         detection_block.setdefault("provider", "suricata")
         detection_block.setdefault("status", "observed")
-
         risk.setdefault("confidence", 0.7)
 
         return detection

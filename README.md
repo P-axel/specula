@@ -1,133 +1,53 @@
-# 🛡️ Specula — Plateforme SOC modulaire
+# Specula — Plateforme SOC modulaire
 
-Specula est une plateforme de détection et d’analyse d’événements de sécurité, pensée pour construire un SOC **plus lisible, plus exploitable et plus accessible**.
+Specula est une plateforme de détection et d'analyse d'événements de sécurité, pensée pour construire un SOC **plus lisible, plus exploitable et plus accessible**.
 
-👉 Objectif : transformer des flux de sécurité complexes en **signaux utiles, corrélés et actionnables**.
+> **Statut : MVP fonctionnel — en développement actif.**
 
-🌐 https://p-axel.github.io/
-
----
-
-## 📸 Aperçu
-
-![Dashboard](dash-1.png)
-![Specula](smpecula.png)
+Site : https://p-axel.github.io/
 
 ---
 
-## 🎯 Pourquoi Specula ?
+## Pourquoi Specula ?
 
-Mettre en place un SOC est souvent :
+Mettre en place un SOC est souvent complexe, lourd et difficile à exploiter. Specula propose une approche différente :
 
-* complexe
-* lourd à maintenir
-* difficile à exploiter réellement
+- Se concentrer sur les bons événements
+- Corréler les signaux utiles automatiquement
+- Rendre l'analyse compréhensible sans noyer l'analyste
+- Structurer la détection plutôt que l'empiler
 
-Specula propose une approche différente :
-
-* 🔍 Se concentrer sur les bons événements
-* ⚡ Corréler les signaux utiles
-* 📊 Rendre l’analyse compréhensible
-* 🧠 Structurer la détection plutôt que l’empiler
+**Specula n'est pas un collecteur de logs. C'est un moteur de corrélation et d'analyse.**
 
 ---
 
-## 🧩 Architecture actuelle
+## Architecture
 
-Specula s’appuie aujourd’hui sur des outils spécialisés :
-
-* **Wazuh** → collecte endpoint (logs système, sécurité)
-* **Suricata** → détection réseau
-
-⚠️ Important :
-
-Cette version est une **première base fonctionnelle** :
-
-* certaines briques sont encore couplées
-* la modularité est **en cours de construction**
-
-👉 Objectif : évoluer vers une plateforme **completement modulaire et extensible**
-
----
-
-## 🔌 Sources de données (IMPORTANT)
-
-Specula **ne collecte pas directement les données**.
-
-👉 Il agit comme un **moteur de corrélation et d’analyse**, en s’appuyant sur des sources externes :
-
-* Wazuh
-* Suricata
-
----
-
-### ⚠️ Agents Wazuh
-
-Specula **ne déploie pas les agents Wazuh automatiquement**.
-
-👉 Pour obtenir des événements système (processus, fichiers, sécurité) :
-
-➡️ Vous devez **installer un agent Wazuh sur les machines à superviser**
-
-Sans agent :
-
-* vous verrez principalement les données réseau (Suricata)
-* la visibilité endpoint sera limitée
-
----
-
-### 🧪 Mode démo
-
-Le déploiement fourni inclut :
-
-* une stack Wazuh (single-node)
-* Suricata
-* Specula
-
-👉 Ce mode permet de tester rapidement la plateforme,
-mais nécessite des sources de données actives pour être pleinement exploitable.
-
----
-
-## 🚀 Fonctionnalités
-
-* 🔍 Ingestion d’événements (Wazuh / Suricata)
-* ⚡ Corrélation d’incidents
-* 📊 Interface d’analyse claire
-* 🧪 Mode démo prêt à l’emploi
-* 🐳 Déploiement rapide via Docker
-
----
-
-## 🎯 Cas d’usage
-
-* SOC léger pour PME
-* lab cybersécurité
-* analyse d’événements
-* expérimentation de corrélation
-* plateforme pédagogique
-
----
-
-# ⚡ Installation rapide
-
-## 🧱 Prérequis
-
-Assurez-vous d’avoir :
-
-* Docker installé
-* Docker Compose disponible
-* curl installé
-
----
-
-## 🔧 1. Vérifier Docker (IMPORTANT)
-
-```bash
-docker ps
+```
+Suricata (réseau)  ──┐
+                     ├──▶ Normalizer ──▶ Correlator ──▶ FastAPI ──▶ React Console
+Wazuh (endpoint)   ──┘         (optionnel)
 ```
 
-👉 Si vous avez une erreur :
+- **Suricata** — IDS réseau en temps réel, actif par défaut
+- **Wazuh** — supervision endpoint (logs système, processus, fichiers), optionnel
+- **specula-core** — backend FastAPI : ingestion, normalisation, corrélation d'incidents
+- **specula-console** — interface React pour analyser les incidents
+
+---
+
+## Prérequis
+
+- Docker + Docker Compose (v2)
+- `curl`
+- Linux (testé sur Debian/Ubuntu)
+
+```bash
+docker ps              # vérifier que Docker tourne
+docker compose version
+```
+
+Si Docker n'est pas accessible :
 
 ```bash
 sudo systemctl start docker
@@ -137,189 +57,145 @@ newgrp docker
 
 ---
 
-## 📦 2. Cloner le projet
+## Installation
+
+### 1. Cloner le projet
 
 ```bash
-git clone git@github.com:P-axel/specula.git
+git clone https://github.com/P-axel/specula.git
 cd specula
 ```
 
----
-
-## ⚙️ 3. Configuration
-
-### Copier les fichiers d’environnement
+### 2. Configurer
 
 ```bash
 cp .env.example .env
-cp .env.example .env.local
 ```
 
----
-
-### 🔥 Configurer Suricata (IMPORTANT)
-
-Trouver votre interface réseau :
+Le fichier `.env` est pré-rempli avec des valeurs par défaut.
+L'interface réseau Suricata est **auto-détectée** au démarrage.
+Si l'auto-détection échoue, ajoutez manuellement dans `.env` :
 
 ```bash
-ip route
+SURICATA_INTERFACE=eth0   # remplacez par votre interface (ip route)
 ```
 
-Exemple :
-
-```
-default via 192.168.1.1 dev wlan0
-```
-
-👉 Ajouter dans `.env` :
+### 3. Démarrer
 
 ```bash
-SURICATA_INTERFACE=wlan0
+make up
 ```
+
+Détecte l'interface réseau, construit les images Docker et attend que tout soit disponible.
 
 ---
 
-### 🎨 Configuration frontend
+## Accès
+
+| Service | URL |
+|---|---|
+| Console Specula | http://localhost:5173 |
+| API (Swagger) | http://localhost:8000/docs |
+
+---
+
+## Mode Wazuh (optionnel)
+
+Pour activer la supervision endpoint avec un agent Wazuh sur la machine hôte :
 
 ```bash
-printf 'VITE_API_BASE_URL=http://localhost:8000\n' > specula-console/.env
+make up-wazuh
 ```
+
+Démarre en plus :
+- `wazuh-manager` — serveur Wazuh (port 55000)
+- `wazuh-indexer` — stockage OpenSearch (port 9200)
+- `wazuh-agent` — agent surveillant les logs système du host (`/var/log`, `/etc`, `/proc`)
+
+> La première fois, les certificats TLS Wazuh sont générés automatiquement (~30s).
 
 ---
 
-## 🚀 4. Lancer Specula
+## Commandes disponibles
 
 ```bash
-chmod +x start-specula.sh
-./start-specula.sh
+make up          # Suricata + Backend + Frontend
+make up-wazuh    # + Stack Wazuh + agent hôte
+make rebuild     # Reconstruire les images et redémarrer
+make down        # Arrêter tous les services
+make logs        # Suivre les logs en temps réel
+make ps          # Lister les services actifs
 ```
 
 ---
 
-## 🌐 Accès
+## Règles de détection réseau
 
-* Interface : http://localhost:5173
-* API : http://localhost:8000/docs
-* Wazuh : https://localhost:8443
+Suricata est configuré avec des règles couvrant les menaces les plus courantes :
 
-⚠️ Le dashboard Wazuh utilise un certificat auto-signé.
+| Catégorie | Exemples |
+|---|---|
+| Scans de ports | TCP SYN sweep, Nmap OS detection, UDP sweep |
+| Brute force | SSH (5+ tentatives / 60s) |
+| DNS suspect | Requêtes longues (exfiltration), volume élevé (tunneling) |
+| C2 / backdoors | Ports 4444, 1337, 31337, 6667 (IRC) |
+| Attaques web | SQL injection, path traversal, upload PHP |
+| Protocoles non chiffrés | FTP, Telnet |
+| Flood | ICMP flood (50+ pings / 5s) |
 
----
-
-# 🧪 Vérifier que tout fonctionne
-
-Après démarrage :
-
-👉 Vérifiez que vous voyez :
-
-* des événements réseau (Suricata)
-* des alertes Wazuh (si agents actifs)
-
-👉 Si rien n’apparaît :
-
-* vérifiez Suricata
-* vérifiez les agents Wazuh
-* vérifiez les volumes Docker
+Ces alertes sont ingérées et corrélées automatiquement en incidents dans la console.
 
 ---
 
-# 🛠️ Dépannage rapide
+## Dépannage
 
-## ❌ Docker non accessible
-
-Erreur :
-
-```
-Docker is installed but not accessible
-```
-
-👉 Solution :
+**Interface réseau non détectée**
 
 ```bash
-sudo systemctl start docker
-sudo usermod -aG docker $USER
-newgrp docker
+ip route   # identifier l'interface (ex: eth0, wlan0, enp3s0)
 ```
 
----
+Puis dans `.env` : `SURICATA_INTERFACE=eth0`
 
-## ❌ Interface Suricata invalide
-
-Vérifier :
-
-```bash
-ip a
-```
-
-Utiliser :
-
-* `wlan0` (Wi-Fi)
-* `eth0` (Ethernet)
-
-❌ Ne pas utiliser :
-
-* `lo`
-* `docker0`
-
----
-
-## ❌ Ports déjà utilisés
+**Ports déjà utilisés**
 
 ```bash
 lsof -i :8000
 lsof -i :5173
 ```
 
----
-
-## 🧠 Mode vérification (recommandé)
+**Voir les logs**
 
 ```bash
-./start-specula.sh --preflight
+make logs
+# ou directement
+docker compose -f deploy/docker/core/docker-compose.yml logs -f
 ```
 
-👉 Vérifie :
+---
 
-* accès Docker
-* configuration
-* réseau
-* variables critiques
+## État du projet
+
+| Brique | État |
+|---|---|
+| Suricata IDS + corrélation d'incidents | Fonctionnel |
+| Ingestion Wazuh (manager + indexer) | Fonctionnel |
+| Agent Wazuh sur hôte | Fonctionnel |
+| Console React (incidents, assets, dashboard) | Fonctionnel |
+| Modularité des connecteurs | En cours |
+| Tests automatisés | Partiel |
 
 ---
 
-# 🧠 Vision
+## À propos
 
-Specula s’inscrit dans une vision claire :
+Pierre-Axel Annonier — Ingénieur cybersécurité
 
-* un noyau robuste et maîtrisé
-* une architecture modulaire
-* une corrélation intelligente des signaux
-* une plateforme orientée **analyse réelle**, pas juste collecte
-
-👉 Specula n’est pas un collecteur de logs.
-👉 C’est un **moteur d’analyse et de corrélation**.
+- https://p-axel.github.io/
+- https://www.linkedin.com/in/pierre-axel-annonier
 
 ---
 
-## 🚧 État du projet
-
-* version actuelle : **MVP fonctionnel**
-* objectif : SIEM modulaire avancé
-
-👉 le projet évolue activement
-
----
-
-## 💼 À propos
-
-Pierre-Axel Annonier
-Ingénieur cybersécurité — audit, infrastructure, automatisation
-
-🌐 https://p-axel.github.io/
-💼 https://www.linkedin.com/in/pierre-axel-annonier
-
----
-
-## 📄 Licence
+## Licence
 
 MIT

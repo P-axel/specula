@@ -15,7 +15,8 @@ class SuricataProvider(DetectionProvider):
     name = "suricata"
 
     def __init__(self, eve_path: str | Path) -> None:
-        self.connector = SuricataConnector(eve_path)
+        self.eve_path = Path(eve_path)
+        self.connector = SuricataConnector(self.eve_path)
         self.normalizer = SuricataNormalizer()
 
     def fetch(self, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
@@ -23,8 +24,16 @@ class SuricataProvider(DetectionProvider):
         return items[offset:] if offset > 0 else items
 
     def list_detections(self, limit: int = 100) -> List[Dict[str, Any]]:
+        # --- MODULARITÉ : Vérification de l'existence du fichier ---
+        if not self.eve_path.exists():
+            logger.debug("Suricata provider: %s not found. Module skipped.", self.eve_path)
+            return []
+
         try:
-            raw_events = self.connector.fetch_events(limit=limit)
+            raw_events = self.connector.fetch_events(
+                limit=limit,
+                event_types=["alert"],
+            )
         except Exception as e:
             logger.error("Failed to fetch Suricata events: %s", e, exc_info=True)
             return []
@@ -101,6 +110,13 @@ class SuricataProvider(DetectionProvider):
         return detections
 
     def get_status(self) -> Dict[str, Any]:
+        # --- MODULARITÉ : Vérification de l'existence du fichier ---
+        if not self.eve_path.exists():
+            return {
+                "status": "inactive",
+                "message": f"Source file {self.eve_path} not found. Module is optional.",
+            }
+
         try:
             return self.connector.get_status()
         except Exception as e:

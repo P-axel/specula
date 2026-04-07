@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable
 
@@ -11,6 +12,10 @@ logger = get_logger(__name__)
 
 USE_TEST_DETECTIONS = (
     os.getenv("SPECULA_USE_TEST_DETECTIONS", "false").strip().lower() == "true"
+)
+
+ALLOW_LOW_VALUE_SURICATA = (
+    os.getenv("SPECULA_ALLOW_LOW_VALUE_SURICATA", "false").strip().lower() == "true"
 )
 
 
@@ -57,17 +62,35 @@ class DetectionsAggregator:
         except Exception:
             return default
 
+    def _sort_key(self, item: dict[str, Any]) -> datetime:
+        raw_value = (
+            item.get("timestamp")
+            or item.get("created_at")
+            or item.get("updated_at")
+            or ""
+        )
+
+        if not isinstance(raw_value, str) or not raw_value.strip():
+            return datetime.min.replace(tzinfo=timezone.utc)
+
+        value = raw_value.strip()
+
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return datetime.min.replace(tzinfo=timezone.utc)
+
     # ==========================================================
     # TEST DATA
     # ==========================================================
 
     def _get_test_detections(self) -> list[dict[str, Any]]:
         return [
-            # Identity / bruteforce
             {
                 "id": "test-auth-1",
                 "title": "Échecs répétés d’authentification",
                 "name": "Échecs répétés d’authentification",
+                "message": "Échecs répétés d’authentification",
                 "timestamp": self._now_iso(8),
                 "created_at": self._now_iso(8),
                 "category": "auth",
@@ -91,6 +114,7 @@ class DetectionsAggregator:
                 "id": "test-auth-2",
                 "title": "Échecs répétés d’authentification",
                 "name": "Échecs répétés d’authentification",
+                "message": "Échecs répétés d’authentification",
                 "timestamp": self._now_iso(6),
                 "created_at": self._now_iso(6),
                 "category": "auth",
@@ -110,11 +134,11 @@ class DetectionsAggregator:
                 "confidence": 0.86,
                 "rule_id": "AUTH-1001",
             },
-            # Network scan
             {
                 "id": "test-net-1",
                 "title": "Scan réseau détecté",
                 "name": "Scan réseau détecté",
+                "message": "Scan réseau détecté",
                 "timestamp": self._now_iso(12),
                 "created_at": self._now_iso(12),
                 "category": "network_scan",
@@ -139,6 +163,7 @@ class DetectionsAggregator:
                 "id": "test-net-2",
                 "title": "Scan réseau détecté",
                 "name": "Scan réseau détecté",
+                "message": "Scan réseau détecté",
                 "timestamp": self._now_iso(11),
                 "created_at": self._now_iso(11),
                 "category": "network_scan",
@@ -159,11 +184,11 @@ class DetectionsAggregator:
                 "confidence": 0.77,
                 "rule_id": "NET-2001",
             },
-            # System / suspicious process
             {
                 "id": "test-sys-1",
                 "title": "Processus suspect observé",
                 "name": "Processus suspect observé",
+                "message": "Processus suspect observé",
                 "timestamp": self._now_iso(15),
                 "created_at": self._now_iso(15),
                 "category": "process",
@@ -187,6 +212,7 @@ class DetectionsAggregator:
                 "id": "test-sys-2",
                 "title": "Processus suspect observé",
                 "name": "Processus suspect observé",
+                "message": "Processus suspect observé",
                 "timestamp": self._now_iso(13),
                 "created_at": self._now_iso(13),
                 "category": "process",
@@ -216,7 +242,6 @@ class DetectionsAggregator:
         if not isinstance(item, dict):
             return None
 
-        # Déjà normalisé
         if any(
             key in item
             for key in [
@@ -244,16 +269,14 @@ class DetectionsAggregator:
             ).strip().lower()
 
             normalized.setdefault("name", normalized.get("title"))
+            normalized.setdefault("message", normalized.get("title") or normalized.get("name")) # Fix 500
             normalized.setdefault("created_at", normalized.get("timestamp"))
-            normalized.setdefault("priority", severity)
-            normalized.setdefault("severity", severity)
-            normalized.setdefault("source_engine", source_engine)
-            normalized.setdefault("engine", source_engine)
-            normalized.setdefault("source", source_engine)
-            normalized.setdefault(
-                "risk_score",
-                self._safe_int(normalized.get("risk_score"), 0),
-            )
+            normalized["priority"] = normalized.get("priority") or severity
+            normalized["severity"] = normalized.get("severity") or severity
+            normalized["source_engine"] = normalized.get("source_engine") or source_engine
+            normalized["engine"] = normalized.get("engine") or source_engine
+            normalized["source"] = normalized.get("source") or source_engine
+            normalized["risk_score"] = self._safe_int(normalized.get("risk_score"), 0)
             normalized.setdefault("status", "open")
 
             return normalized
@@ -262,14 +285,33 @@ class DetectionsAggregator:
         if not isinstance(event, dict):
             return None
 
-        source = item.get("source") or {}
-        destination = item.get("destination") or {}
-        network = item.get("network") or {}
-        risk = item.get("risk") or {}
-        observer = item.get("observer") or {}
-        raw = item.get("raw") or {}
+        source = item.get("source")
+        if not isinstance(source, dict):
+            source = {}
 
-        raw_alert = raw.get("alert") or {}
+        destination = item.get("destination")
+        if not isinstance(destination, dict):
+            destination = {}
+
+        network = item.get("network")
+        if not isinstance(network, dict):
+            network = {}
+
+        risk = item.get("risk")
+        if not isinstance(risk, dict):
+            risk = {}
+
+        observer = item.get("observer")
+        if not isinstance(observer, dict):
+            observer = {}
+
+        raw = item.get("raw")
+        if not isinstance(raw, dict):
+            raw = {}
+
+        raw_alert = raw.get("alert")
+        if not isinstance(raw_alert, dict):
+            raw_alert = {}
 
         title = (
             event.get("signature")
@@ -308,6 +350,7 @@ class DetectionsAggregator:
             "created_at": item.get("timestamp"),
             "title": title,
             "name": title,
+            "message": title, # Fix 500
             "category": category,
             "severity": severity,
             "priority": severity,
@@ -346,9 +389,23 @@ class DetectionsAggregator:
             item.get("source_engine") or item.get("engine") or item.get("source") or ""
         ).strip().lower()
 
-        # mode debug temporaire : on laisse passer Suricata
         if source_engine == "suricata":
-            return True
+            if ALLOW_LOW_VALUE_SURICATA:
+                return True
+
+            if severity in {"info", ""} and category in {
+                "network_flow",
+                "network_dns",
+                "network_tls",
+                "dns",
+                "tls",
+                "http",
+                "flow",
+            }:
+                return False
+
+            if title in {"event", "flow", "dns", "tls", "http"}:
+                return False
 
         if not any(
             [
@@ -365,70 +422,81 @@ class DetectionsAggregator:
         return True
 
     # ==========================================================
+    # PROVIDER EXECUTION
+    # ==========================================================
+
+    def _collect_provider_items(
+        self,
+        provider: DetectionProvider,
+        limit: int,
+    ) -> tuple[str, list[dict[str, Any]]]:
+        provider_name = getattr(provider, "name", provider.__class__.__name__)
+        provider_items = provider.list_detections(limit=limit)
+
+        if not isinstance(provider_items, list):
+            logger.warning("Provider %s a retourné un type invalide", provider_name)
+            return provider_name, []
+
+        valid_items: list[dict[str, Any]] = []
+        dropped_count = 0
+
+        for raw_item in provider_items:
+            item = self._normalize_item(raw_item)
+
+            if item is None or not self._is_valid_detection(item):
+                dropped_count += 1
+                continue
+
+            valid_items.append(item)
+
+        logger.info(
+            "Provider %s -> %s détection(s) valide(s), %s ignorée(s)",
+            provider_name,
+            len(valid_items),
+            dropped_count,
+        )
+        return provider_name, valid_items
+
+    # ==========================================================
     # PUBLIC API
     # ==========================================================
 
     def list_detections(self, limit: int = 50) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
 
-        for provider in self.providers:
-            provider_name = getattr(provider, "name", provider.__class__.__name__)
+        if self.providers:
+            max_workers = min(len(self.providers), 4)
 
-            try:
-                provider_items = provider.fetch(limit=limit)
-            except Exception as exc:
-                logger.exception(
-                    "Erreur lors de la récupération des détections pour le provider %s: %s",
-                    provider_name,
-                    exc,
-                )
-                continue
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = [
+                    executor.submit(self._collect_provider_items, provider, limit)
+                    for provider in self.providers
+                ]
 
-            if not isinstance(provider_items, list):
-                logger.warning("Provider %s a retourné un type invalide", provider_name)
-                continue
-
-            valid_count = 0
-            dropped_count = 0
-
-            for raw_item in provider_items:
-                item = self._normalize_item(raw_item)
-
-                if item is None or not self._is_valid_detection(item):
-                    dropped_count += 1
-                    continue
-
-                items.append(item)
-                valid_count += 1
-
-            logger.info(
-                "Provider %s -> %s détection(s) valide(s), %s ignorée(s)",
-                provider_name,
-                valid_count,
-                dropped_count,
-            )
+                for future in as_completed(futures):
+                    try:
+                        _, provider_items = future.result()
+                        items.extend(provider_items)
+                    except Exception as exc:
+                        logger.exception(
+                            "Erreur lors de la récupération des détections d'un provider: %s",
+                            exc,
+                        )
 
         if USE_TEST_DETECTIONS:
-            test_items = self._get_test_detections()
-            valid_test_items = [
-                item
-                for item in test_items
-                if self._normalize_item(item) is not None and self._is_valid_detection(item)
-            ]
+            valid_test_items: list[dict[str, Any]] = []
+
+            for item in self._get_test_detections():
+                normalized = self._normalize_item(item)
+                if normalized is not None and self._is_valid_detection(normalized):
+                    valid_test_items.append(normalized)
+
             items.extend(valid_test_items)
             logger.info(
                 "Mode test activé -> %s détection(s) de test injectée(s)",
                 len(valid_test_items),
             )
 
-        items.sort(
-            key=lambda x: str(
-                x.get("timestamp")
-                or x.get("created_at")
-                or x.get("updated_at")
-                or ""
-            ),
-            reverse=True,
-        )
+        items.sort(key=self._sort_key, reverse=True)
 
         return items[:limit] if limit > 0 else items

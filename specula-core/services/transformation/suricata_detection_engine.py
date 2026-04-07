@@ -47,6 +47,7 @@ class SuricataDetectionEngine:
 
         signature_id = (
             alert.get("signature_id")
+            or event.get("event_id")
             or event.get("signature_id")
             or event.get("rule_id")
             or event.get("source_rule_id")
@@ -267,28 +268,9 @@ class SuricataDetectionEngine:
         pair = endpoint_pair()
 
         if event_type == "alert":
-            if "specula test" in sig or "test" in sig:
-                detections.append(
-                    build_detection(
-                        title="Signature réseau de test détectée",
-                        description=(
-                            f"Une signature de test Suricata a été observée sur le flux {pair}."
-                        ),
-                        severity="low",
-                        category="security_event",
-                        detection_type="network",
-                        confidence=0.30,
-                        rationale=(
-                            "La signature déclenchée ressemble à une règle de test ou de validation."
-                        ),
-                        recommended_actions=[
-                            "Vérifier s’il s’agit d’un trafic de validation interne",
-                            "Écarter le bruit si ce test est volontaire",
-                            "Conserver l’événement pour contrôle du pipeline",
-                        ],
-                        extra_tags=["test_signature"],
-                    )
-                )
+            # Ne jamais remonter les signatures de test dans le pipeline prod
+            if "specula test" in sig:
+                return []
 
             elif any(token in sig for token in ["scan", "nmap", "recon", "enumeration"]):
                 detections.append(
@@ -623,29 +605,7 @@ class SuricataDetectionEngine:
             )
 
         elif event_type == "flow":
-            has_payload = any(
-                value not in (None, 0, "0")
-                for value in [bytes_toserver, bytes_toclient, pkts_toserver, pkts_toclient]
-            )
-
-            if has_payload:
-                detections.append(
-                    build_detection(
-                        title="Flux réseau observé",
-                        description=(
-                            f"Un flux réseau a été observé entre {format_endpoint(src_ip, src_port)} "
-                            f"et {format_endpoint(dest_ip, dest_port)}."
-                        ),
-                        severity="info",
-                        category="network_flow",
-                        detection_type="network",
-                        confidence=0.25,
-                        rationale="Événement de flux remonté principalement pour visibilité et corrélation.",
-                        recommended_actions=[
-                            "Utiliser ce signal pour la corrélation avec d’autres alertes",
-                        ],
-                        extra_tags=["flow_event"],
-                    )
-                )
+            # On ne transforme plus les flows bruts en détections visibles
+            return []
 
         return detections

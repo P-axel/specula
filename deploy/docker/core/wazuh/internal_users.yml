@@ -1,0 +1,32 @@
+---
+# Utilisateurs internes de l'indexer Wazuh (OpenSearch Security)
+# Le hash correspond au mot de passe "SecretPassword" (démo par défaut)
+# Pour changer : générer un nouveau hash avec :
+#   docker run --rm wazuh/wazuh-indexer:4.7.2 \
+#     /usr/share/wazuh-indexer/plugins/opensearch-security/tools/hash.sh -p VotreMotDePasse
+_meta:
+  type: "internalusers"
+  config_version: 2
+
+# Utilisateur admin principal
+admin:
+  hash: "$2y$12$K/SpwjtB.wOHJ/Nc6GVHDOfDSPoBaGNLLDTBzpqRarB4/dlB2ycve"
+  reserved: true
+  backend_roles:
+    - "admin"
+  description: "Wazuh indexer admin"
+
+# Utilisateur kibanaserver (requis pour la compatibilité OpenSearch)
+kibanaserver:
+  hash: "$2a$12$4AcgAt3xwOWadA5s5blL6ev39OXDNhmOesEoo33eZtrq2N0YrU3H."
+  reserved: true
+  description: "OpenSearch Dashboards user"
+
+# Utilisateur interne pour filebeat/wazuh-manager
+wazuh-indexer-ro:
+  hash: "$2a$12$EbkF4AHRBc23rGNoBgFwHOuARhfHWM5.qiHBDxOX19JEoE3pBSs/i"
+  reserved: false
+  backend_roles:
+    - "readall"
+    - "manage_snapshots"
+  description: "Wazuh indexer read-only"

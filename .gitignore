@@ -2,9 +2,13 @@
 # ENV / SECRETS
 #################################
 .env
+.env.wazuh
 .env.local
 .env.*
+
+# autoriser les fichiers d'exemple
 !.env.example
+!.env.*.example
 
 deploy/*/.env
 
@@ -78,16 +82,13 @@ temp/
 *.tmp
 *.swp
 
-
+#################################
+# RUNTIME
+#################################
 runtime/
 
-deploy/master/suricata/deploy/master/suricata/
-deploy/master/suricata/
-deploy/master/wazuh/
-*.log
-
-# runtime / data
-deploy/master/suricata/single-node/etc/
-deploy/master/suricata/single-node/etc/*.config
-deploy/master/suricata/single-node/etc/*.yaml
-archives/
+#################################
+# SURICATA LOCAL DATA (runtime)
+#################################
+deploy/docker/core/suricata/etc/*.config
+deploy/docker/core/suricata/etc/*.yaml

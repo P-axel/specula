@@ -7,18 +7,15 @@ from detection.engine import DetectionEngine
 from services.ingestion.alerts_service import AlertsService
 from services.ingestion.assets_service import AssetsService
 from services.ingestion.events_service import EventsService
-from services.ingestion.network_alerts_service import NetworkAlertsService
 
 from services.transformation.detections_aggregator import DetectionsAggregator
 from services.transformation.detections_service import DetectionsService
 
-from services.orchestration.network_incidents_service import NetworkIncidentsService
 from services.orchestration.unified_correlator import UnifiedCorrelator
 from services.orchestration.unified_events_service import UnifiedEventsService
 from services.orchestration.unified_incidents_service import UnifiedIncidentsService
 
 from services.plugin_registry import PluginRegistry
-from services.themes_service import ThemesService
 
 
 DEFAULT_EVE_PATH = Path(
@@ -32,9 +29,7 @@ assets_service = AssetsService()
 alerts_service = AlertsService()
 detections_service = DetectionsService()
 detection_engine = DetectionEngine()
-themes_service = ThemesService()
-network_alerts_service = NetworkAlertsService()
-network_incidents_service = NetworkIncidentsService()
+
 
 if ENABLE_WAZUH:
     from services.ingestion.wazuh_events_service import WazuhEventsService
