@@ -1,5 +1,7 @@
 # Specula — Plateforme SOC modulaire
 
+*par [Pierre-Axel Annonier](https://p-axel.github.io/)*
+
 Specula est une plateforme de détection et d'analyse d'événements de sécurité, pensée pour construire un SOC **plus lisible, plus exploitable et plus accessible**.
 
 > **Statut : MVP fonctionnel — en développement actif.**
