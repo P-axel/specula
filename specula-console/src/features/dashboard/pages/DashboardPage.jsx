@@ -24,6 +24,47 @@ import "./DashboardPage.css";
 
 const SEVERITY_COLORS = ["#ff6f6f", "#ffb07b", "#ffd47c", "#9fd0ff", "#89e6cb"];
 
+const SOURCES_META = {
+  suricata: { label: "Suricata", subtitle: "IDS Réseau" },
+  wazuh:    { label: "Wazuh",    subtitle: "SIEM / Endpoint" },
+};
+
+function formatRelative(isoStr) {
+  if (!isoStr) return null;
+  const diff = Date.now() - new Date(isoStr).getTime();
+  if (isNaN(diff)) return null;
+  const m = Math.floor(diff / 60000);
+  if (m < 1)  return "à l'instant";
+  if (m < 60) return `il y a ${m} min`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `il y a ${h} h`;
+  return `il y a ${Math.floor(h / 24)} j`;
+}
+
+function SourceCard({ engineKey, count, lastSeen }) {
+  const meta = SOURCES_META[engineKey] || { label: engineKey, subtitle: "" };
+  const active = count > 0;
+  return (
+    <div className={`source-card source-card--${active ? "active" : "inactive"}`}>
+      <div className="source-card__header">
+        <span className="source-card__dot" />
+        <div>
+          <span className="source-card__name">{meta.label}</span>
+          <span className="source-card__subtitle">{meta.subtitle}</span>
+        </div>
+        <span className="source-card__badge">{active ? "Actif" : "Inactif"}</span>
+      </div>
+      <div className="source-card__count">{count}</div>
+      <div className="source-card__hint">
+        {active ? `détection${count > 1 ? "s" : ""} remontée${count > 1 ? "s" : ""}` : "aucune détection"}
+      </div>
+      {lastSeen && (
+        <div className="source-card__last-seen">Dernier signal : {formatRelative(lastSeen)}</div>
+      )}
+    </div>
+  );
+}
+
 function getPriorityLabel(value) {
   const normalized = String(value || "info").toLowerCase();
 
@@ -172,6 +213,24 @@ export default function DashboardPage() {
     };
   }, [incidentsRaw, alertsRaw, overview]);
 
+  const sourcesStatus = useMemo(() => {
+    const acc = {};
+    for (const engineKey of Object.keys(SOURCES_META)) {
+      acc[engineKey] = { count: 0, lastSeen: null };
+    }
+    for (const d of detections) {
+      const engine = String(d.engine || d.source || "").toLowerCase();
+      if (engine in acc) {
+        acc[engine].count++;
+        const ts = d.timestamp || d.created_at;
+        if (ts && (!acc[engine].lastSeen || ts > acc[engine].lastSeen)) {
+          acc[engine].lastSeen = ts;
+        }
+      }
+    }
+    return Object.entries(acc).map(([key, val]) => ({ engineKey: key, ...val }));
+  }, [detections]);
+
   const headlineCards = useMemo(() => {
     if (!overview) return [];
 
@@ -288,6 +347,14 @@ export default function DashboardPage() {
             value={`${localStats.networkCorrelationRate}%`}
             hint="Part des détections réseau qualifiées en corrélations réseau."
           />
+        </div>
+      </PageSection>
+
+      <PageSection title="Sources actives">
+        <div className="sources-grid">
+          {sourcesStatus.map((src) => (
+            <SourceCard key={src.engineKey} {...src} />
+          ))}
         </div>
       </PageSection>
 
