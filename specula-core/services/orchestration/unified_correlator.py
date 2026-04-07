@@ -14,10 +14,22 @@ class UnifiedCorrelator:
     - ne garder que les signaux éligibles à un incident SOC
     - regrouper les signaux proches selon plusieurs dimensions
     - produire des incidents lisibles, priorisés et exploitables
+
+    Cross-source : une alerte Suricata et un log Wazuh partagent le même
+    IP source/dest → ils sont corrélés en un seul incident enrichi.
     """
 
     def __init__(self, window_minutes: int = 30) -> None:
         self.window_minutes = window_minutes
+
+    def _cross_source_key(self, item: dict[str, Any]) -> set[str]:
+        """Retourne les IPs de l'item pour la corrélation cross-source."""
+        keys: set[str] = set()
+        for field in ("src_ip", "dest_ip"):
+            val = self._normalize_text_lower(item.get(field))
+            if val and val not in {"", "none", "unknown"}:
+                keys.add(val)
+        return keys
 
     def _parse_dt(self, value: str | None) -> datetime | None:
         if not value:
@@ -586,7 +598,24 @@ class UnifiedCorrelator:
         strong_matches = sum(1 for left, right in strong_pairs if left and left == right)
         weak_matches = sum(1 for left, right in weak_pairs if left and left == right)
 
-        return strong_matches >= 1 or (strong_matches + weak_matches) >= 2
+        if strong_matches >= 1 or (strong_matches + weak_matches) >= 2:
+            return True
+
+        # Corrélation cross-source : même IP entre Suricata et Wazuh
+        current_ips = self._cross_source_key(current)
+        reference_ips = self._cross_source_key(reference)
+        if current_ips and reference_ips and current_ips & reference_ips:
+            current_engine = self._normalize_text_lower(
+                current.get("source_engine") or current.get("engine") or ""
+            )
+            reference_engine = self._normalize_text_lower(
+                reference.get("source_engine") or reference.get("engine") or ""
+            )
+            # Ne corréler cross-source que si les moteurs sont différents
+            if current_engine != reference_engine:
+                return True
+
+        return False
 
     def _dedupe_timeline(self, entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
         seen: set[tuple[str, str, str, str, str, str]] = set()

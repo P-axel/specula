@@ -1,6 +1,7 @@
 import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
+import CriticalAlertToast from "../../shared/ui/CriticalAlertToast";
 
 export default function AppShell() {
   return (
@@ -13,6 +14,8 @@ export default function AppShell() {
           <Outlet />
         </main>
       </div>
+
+      <CriticalAlertToast />
     </div>
   );
 }

@@ -396,6 +396,7 @@ export function normalizeAlertItem(alert, index = 0) {
 export function normalizeIncidentItem(incident, index = 0) {
   let engine = normalizeEngine(
     incident.engine ||
+      incident.dominant_engine ||
       incident.source_engine ||
       incident.detector ||
       incident.provider ||

@@ -5,6 +5,8 @@ from datetime import datetime
 from ipaddress import ip_address
 from typing import Any, Dict, List, Optional
 
+from detection.mitre_mapping import format_techniques, lookup_suricata
+
 logger = logging.getLogger(__name__)
 
 
@@ -181,13 +183,23 @@ class SuricataNormalizer:
         if not alert:
             return None
         severity_code = self._to_int(alert.get("severity"))
+        classtype = self._normalize_str(alert.get("category"))
+        signature = self._normalize_str(alert.get("signature"))
+        mitre_entry = lookup_suricata(classtype, signature)
         return {
             "engine": "suricata",
-            "title": self._normalize_str(alert.get("signature")),
+            "title": signature,
             "rule_id": self._to_int(alert.get("signature_id")),
             "severity": severity_code,
             "severity_label": self._normalize_severity(severity_code),
             "status": "observed",
+            "mitre": {
+                "technique_id": mitre_entry["technique_id"] if mitre_entry else None,
+                "technique_name": mitre_entry["technique_name"] if mitre_entry else None,
+                "tactic": mitre_entry["tactic"] if mitre_entry else None,
+                "sub_technique_id": mitre_entry.get("sub_technique_id") if mitre_entry else None,
+            } if mitre_entry else None,
+            "mitre_techniques": format_techniques(mitre_entry),
         }
 
     def _build_dns(self, dns: Dict[str, Any]) -> Optional[Dict[str, Any]]:

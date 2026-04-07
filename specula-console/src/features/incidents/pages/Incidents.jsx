@@ -118,11 +118,6 @@ export default function IncidentsPage() {
   const handleResetFilters = () => {
     setFilters({ ...DEFAULT_INCIDENT_FILTERS });
   };
-console.log("incidentsRaw", incidentsRaw);
-console.log("incidentsData", incidentsData);
-console.log("filters", filters);
-console.log("filteredIncidents", filteredIncidents);
-console.log("selectedIncident", selectedIncident);
   return (
     <div className="page incidents-page">
       <PageHero

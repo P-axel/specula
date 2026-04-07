@@ -85,4 +85,26 @@ class WazuhBusinessProvider(DetectionProvider):
         risk.setdefault("level", "info")
         risk.setdefault("confidence", 0.5)
 
+        # Champs plats requis par le schéma Pydantic de l'endpoint /detections
+        # (les alertes Wazuh arrivent en format ECS imbriqué)
+        if not detection.get("id"):
+            detection["id"] = event.get("id") or detection_block.get("rule_id") or "wazuh-unknown"
+        if not isinstance(detection.get("source"), str):
+            detection["source"] = (
+                event.get("provider")
+                or detection_block.get("engine")
+                or "wazuh"
+            )
+        if not detection.get("title"):
+            detection["title"] = (
+                detection_block.get("title")
+                or detection.get("rule", {}).get("name") if isinstance(detection.get("rule"), dict) else None
+                or event.get("category")
+                or "Wazuh alert"
+            )
+        if not detection.get("severity"):
+            detection["severity"] = event.get("severity") or risk.get("level") or "info"
+        if not detection.get("engine"):
+            detection["engine"] = detection_block.get("engine") or "wazuh"
+
         return detection

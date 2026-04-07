@@ -1,6 +1,18 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from __future__ import annotations
 
+import asyncio
+import json
+import os
+import time
+from typing import Any
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
+
+from api.auth import router as auth_router
 from api.alerts import router as alerts_router
 from api.assets import router as assets_router
 from api.dashboard import router as dashboard_router
@@ -8,26 +20,114 @@ from api.detections import router as detections_router
 from api.events import router as events_router
 from api.incidents import router as incidents_router
 from api.soc import router as soc_router
+from specula_logging.logger import get_logger
 
+logger = get_logger(__name__)
+
+# ─── CORS ──────────────────────────────────────────────────────────────────────
+_raw_origins = os.getenv(
+    "SPECULA_ALLOWED_ORIGINS",
+    "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174",
+)
+ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+
+# ─── Security headers middleware ────────────────────────────────────────────────
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next: Any) -> Response:
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        # CSP permissive en dev, à durcir en prod
+        if os.getenv("SPECULA_ENV", "dev") == "prod":
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
+
+
+# ─── Request logging middleware ─────────────────────────────────────────────────
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next: Any) -> Response:
+        start = time.monotonic()
+        response = await call_next(request)
+        duration_ms = (time.monotonic() - start) * 1000
+        logger.info(
+            "HTTP %s %s → %d (%.1fms)",
+            request.method,
+            request.url.path,
+            response.status_code,
+            duration_ms,
+        )
+        return response
+
+
+# ─── WebSocket notification bus ────────────────────────────────────────────────
+class NotificationBus:
+    """Bus simple pour diffuser les nouvelles alertes critiques aux clients WS."""
+
+    def __init__(self) -> None:
+        self._connections: list[WebSocket] = []
+        self._lock = asyncio.Lock()
+
+    async def connect(self, ws: WebSocket) -> None:
+        await ws.accept()
+        async with self._lock:
+            self._connections.append(ws)
+        logger.info("WS client connecté (%d total)", len(self._connections))
+
+    async def disconnect(self, ws: WebSocket) -> None:
+        async with self._lock:
+            self._connections = [c for c in self._connections if c is not ws]
+        logger.info("WS client déconnecté (%d restants)", len(self._connections))
+
+    async def broadcast(self, payload: dict[str, Any]) -> None:
+        if not self._connections:
+            return
+        message = json.dumps(payload, default=str)
+        dead: list[WebSocket] = []
+        for ws in list(self._connections):
+            try:
+                await ws.send_text(message)
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            await self.disconnect(ws)
+
+
+bus = NotificationBus()
+
+
+# ─── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(
     title="Specula API",
-    version="0.1.0",
-    description="API minimale du noyau Specula",
+    version="0.2.0",
+    description="Specula SOC Platform API",
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
+# Middlewares (ordre : dernier ajouté = premier exécuté)
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5174",
-    ],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
+# Prometheus metrics
+try:
+    from prometheus_fastapi_instrumentator import Instrumentator
+    Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+    logger.info("Prometheus /metrics activé")
+except ImportError:
+    logger.warning("prometheus-fastapi-instrumentator non disponible, /metrics désactivé")
+
+# Routers
+app.include_router(auth_router)
 app.include_router(assets_router)
 app.include_router(events_router)
 app.include_router(alerts_router)
@@ -37,6 +137,39 @@ app.include_router(soc_router)
 app.include_router(dashboard_router)
 
 
-@app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+# ─── Health ────────────────────────────────────────────────────────────────────
+@app.get("/health", tags=["system"])
+def health() -> dict[str, Any]:
+    return {
+        "status": "ok",
+        "version": app.version,
+        "env": os.getenv("SPECULA_ENV", "dev"),
+    }
+
+
+# ─── WebSocket : alertes critiques temps réel ──────────────────────────────────
+@app.websocket("/ws/incidents")
+async def ws_incidents(websocket: WebSocket) -> None:
+    """
+    WebSocket pour recevoir les nouvelles alertes critiques en temps réel.
+    Le client se connecte et reçoit un push à chaque nouvel incident critique.
+
+    Usage frontend :
+        const ws = new WebSocket('ws://localhost:8000/ws/incidents');
+        ws.onmessage = (e) => console.log(JSON.parse(e.data));
+    """
+    await bus.connect(websocket)
+    try:
+        # Envoi d'un ping de bienvenue
+        await websocket.send_json({"type": "connected", "message": "Specula WS ready"})
+        # Maintenir la connexion vivante
+        while True:
+            try:
+                await asyncio.wait_for(websocket.receive_text(), timeout=30)
+            except asyncio.TimeoutError:
+                # Heartbeat
+                await websocket.send_json({"type": "ping"})
+    except WebSocketDisconnect:
+        pass
+    finally:
+        await bus.disconnect(websocket)

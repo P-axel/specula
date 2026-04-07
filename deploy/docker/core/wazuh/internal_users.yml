@@ -10,7 +10,7 @@ _meta:
 
 # Utilisateur admin principal
 admin:
-  hash: "$2y$12$K/SpwjtB.wOHJ/Nc6GVHDOfDSPoBaGNLLDTBzpqRarB4/dlB2ycve"
+  hash: "$2y$12$y8Ur1arOMRmngiOiWJQVx.hOHYczZJfkeH9DxdN0miwKBhJjlacyG"
   reserved: true
   backend_roles:
     - "admin"

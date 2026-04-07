@@ -12,7 +12,6 @@ function normalizeIncidentResponse(payload) {
 
 export async function getSocIncidents(limit = 50) {
   const payload = await request(`/incidents/soc?limit=${limit}`);
-  console.log("getSocIncidents payload", payload);
   return normalizeIncidentResponse(payload);
 }
 

@@ -7,6 +7,7 @@ from typing import Any, Dict, List
 from connectors.suricata.connector import SuricataConnector
 from normalization.suricata_normalizer import SuricataNormalizer
 from providers.base_provider import DetectionProvider
+from detection import geoip as geoip_module
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +80,10 @@ class SuricataProvider(DetectionProvider):
                     "low": 30,
                 }
 
+                detection_info = normalized.get("detection") or {}
+                mitre_techniques = detection_info.get("mitre_techniques") or []
+                mitre = detection_info.get("mitre") or {}
+
                 flat_detection = {
                     "id": normalized.get("event", {}).get("id"),
                     "title": signature or "Suricata alert",
@@ -99,6 +104,12 @@ class SuricataProvider(DetectionProvider):
                     "summary": signature or "Suricata alert",
                     "confidence": normalized.get("risk", {}).get("confidence"),
                     "rule_id": alert.get("signature_id"),
+                    "mitre_techniques": mitre_techniques,
+                    "mitre_tactic": mitre.get("tactic"),
+                    "mitre_technique_id": mitre.get("technique_id"),
+                    "mitre_technique_name": mitre.get("technique_name"),
+                    "src_geo": geoip_module.lookup(normalized.get("source", {}).get("ip")),
+                    "dest_geo": geoip_module.lookup(normalized.get("destination", {}).get("ip")),
                     "raw_detection": normalized,
                 }
 
