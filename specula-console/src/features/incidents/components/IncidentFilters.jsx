@@ -77,7 +77,7 @@ export default function IncidentFilters({ filters, setFilters, onReset }) {
           <option value="all">Tous</option>
           <option value="open">Ouvert</option>
           <option value="investigating">En investigation</option>
-          <option value="closed">Clos</option>
+          <option value="resolved">Résolu</option>
         </select>
       </div>
 

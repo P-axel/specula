@@ -31,12 +31,26 @@ export default function IncidentsPage() {
 
   const [selectedIncident, setSelectedIncident] = useState(null);
   const [filters, setFilters] = useState({ ...DEFAULT_INCIDENT_FILTERS });
+  const [localStatuses, setLocalStatuses] = useState({});
+
+  const handleStatusChange = (id, newStatus) => {
+    setLocalStatuses((prev) => ({ ...prev, [id]: newStatus }));
+  };
 
   const incidentsData = useMemo(() => {
     return (Array.isArray(incidentsRaw) ? incidentsRaw : []).map((incident, index) =>
       normalizeIncidentItem(incident, index)
     );
   }, [incidentsRaw]);
+
+  // Fusionne les statuts locaux (changements frontend) avec les données backend
+  const incidentsWithStatus = useMemo(() => {
+    return incidentsData.map((incident) =>
+      localStatuses[incident.id]
+        ? { ...incident, status: localStatuses[incident.id] }
+        : incident
+    );
+  }, [incidentsData, localStatuses]);
 
   const normalizedAlerts = useMemo(() => {
     return (Array.isArray(alertsRaw) ? alertsRaw : []).map((alert, index) =>
@@ -45,14 +59,14 @@ export default function IncidentsPage() {
   }, [alertsRaw]);
 
   const highPriorityCount = useMemo(() => {
-    return incidentsData.filter((incident) => {
+    return incidentsWithStatus.filter((incident) => {
       const priority = getPriorityLabel(incident.severity);
       return priority === "high" || priority === "critical";
     }).length;
   }, [incidentsData]);
 
   const vulnerabilityCount = useMemo(() => {
-    return incidentsData.filter(
+    return incidentsWithStatus.filter(
       (incident) =>
         incident.kind === "vulnerability" ||
         (Array.isArray(incident.cves) && incident.cves.length > 0)
@@ -60,15 +74,15 @@ export default function IncidentsPage() {
   }, [incidentsData]);
 
   const openCount = useMemo(() => {
-    return incidentsData.filter((incident) => {
+    return incidentsWithStatus.filter((incident) => {
       const status = String(incident.status || "open").toLowerCase();
       return status === "open" || status === "investigating";
     }).length;
   }, [incidentsData]);
 
   const filteredIncidents = useMemo(() => {
-    return filterIncidents(incidentsData, filters);
-  }, [incidentsData, filters]);
+    return filterIncidents(incidentsWithStatus, filters);
+  }, [incidentsWithStatus, filters]);
 
   useEffect(() => {
     if (!filteredIncidents.length) {
@@ -93,7 +107,7 @@ export default function IncidentsPage() {
     () => [
       {
         label: "Incidents visibles",
-        value: incidentsData.length,
+        value: incidentsWithStatus.length,
         tone: "warning",
       },
       { label: "Incidents ouverts", value: openCount, tone: "info" },
@@ -108,12 +122,12 @@ export default function IncidentsPage() {
   );
 
   const heroBadge = useMemo(() => {
-    if (!incidentsData.length) return "0 incident";
-    if (filteredIncidents.length === incidentsData.length) {
-      return `${incidentsData.length} incident(s)`;
+    if (!incidentsWithStatus.length) return "0 incident";
+    if (filteredIncidents.length === incidentsWithStatus.length) {
+      return `${incidentsWithStatus.length} incident(s)`;
     }
-    return `${filteredIncidents.length}/${incidentsData.length} incident(s) visibles`;
-  }, [filteredIncidents.length, incidentsData.length]);
+    return `${filteredIncidents.length}/${incidentsWithStatus.length} incident(s) visibles`;
+  }, [filteredIncidents.length, incidentsWithStatus.length]);
 
   const handleResetFilters = () => {
     setFilters({ ...DEFAULT_INCIDENT_FILTERS });
@@ -198,6 +212,7 @@ export default function IncidentsPage() {
             <IncidentDetailPanel
               incident={selectedIncident}
               linkedAlerts={linkedAlerts}
+              onStatusChange={handleStatusChange}
             />
           </PageSection>
         </div>
