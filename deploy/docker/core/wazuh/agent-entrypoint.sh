@@ -86,6 +86,19 @@ cat > "${OSSEC_CONF}" << EOF
     <frequency>43200</frequency>
   </rootcheck>
 
+  <!-- Inventaire des packages installés — requis pour la détection de vulnérabilités -->
+  <wodle name="syscollector">
+    <disabled>no</disabled>
+    <interval>1h</interval>
+    <scan_on_start>yes</scan_on_start>
+    <hardware>yes</hardware>
+    <os>yes</os>
+    <network>yes</network>
+    <packages>yes</packages>
+    <ports all="no">yes</ports>
+    <processes>yes</processes>
+  </wodle>
+
   <logging>
     <log_format>plain</log_format>
   </logging>

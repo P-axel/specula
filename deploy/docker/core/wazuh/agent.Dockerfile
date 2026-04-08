@@ -1,4 +1,6 @@
-# Agent Wazuh en conteneur — surveille la machine hôte via des montages de volumes
+# Agent Wazuh dédié à Specula
+# Rôle : surveiller l'infrastructure Specula elle-même (logs, fichiers système,
+# packages installés, processus) et remonter les alertes au wazuh-manager.
 # Construit automatiquement lors du démarrage avec --profile wazuh
 
 FROM debian:12-slim

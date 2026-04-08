@@ -90,6 +90,7 @@ _start-wazuh: wazuh-certs
 	@echo "[specula] Initialisation sécurité Wazuh indexer (~15s)..."
 	@sleep 15
 	@$(MAKE) --no-print-directory wazuh-security-init
+	@$(MAKE) --no-print-directory wazuh-enable-vuln
 	@echo ""
 	@echo "  ════════════════════════════════════"
 	@echo "  Console       : http://localhost:5173"
@@ -125,6 +126,28 @@ wazuh-security-init:
 		  -key /tmp/admin-key.pem \
 		  -h localhost -p 9200 2>&1 | grep -E "SUCC:|ERR:|Done" ' || \
 	echo "[specula] WARN: securityadmin a échoué — credentials indexer peut-être déjà configurés."
+
+# ─── Détection de vulnérabilités Wazuh ─────────────────────────
+# Active le vulnerability-detector dans le manager (Debian 12 bookworm).
+# Les packages remontés par syscollector (agent) sont croisés avec les CVE.
+wazuh-enable-vuln:
+	@echo "[specula] Activation de la détection de vulnérabilités Wazuh (Debian bookworm)..."
+	@docker exec -u root wazuh-manager bash -c '\
+		conf=/var/ossec/etc/ossec.conf; \
+		sed -i "/<vulnerability-detector>/,/<\/vulnerability-detector>/ { \
+		  s|<enabled>no</enabled>|<enabled>yes</enabled>| \
+		}" "$$conf"; \
+		sed -i "/<provider name=\"debian\">/,/<\/provider>/ { \
+		  s|<enabled>no</enabled>|<enabled>yes</enabled>| \
+		}" "$$conf"; \
+		grep -q "<os>bookworm</os>" "$$conf" || \
+		  sed -i "/<provider name=\"debian\">/,/<\/provider>/ { \
+		    s|<os>buster</os>|<os>buster</os>\n      <os>bookworm</os>| \
+		  }" "$$conf"; \
+		echo "[specula] ossec.conf mis à jour"; \
+		grep -A3 "<vulnerability-detector>" "$$conf" | head -4'
+	@docker restart wazuh-manager > /dev/null
+	@echo "[specula] Manager redémarré — premier scan de vulnérabilités dans ~5 min"
 
 # ─── Reconstruction ────────────────────────────────────────────
 rebuild: .env
