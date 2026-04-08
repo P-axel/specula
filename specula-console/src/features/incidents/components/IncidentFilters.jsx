@@ -35,9 +35,7 @@ export default function IncidentFilters({ filters, setFilters, onReset }) {
           <option value="network">Réseau</option>
           <option value="system">Système</option>
           <option value="identity">Identité</option>
-          <option value="application">Application</option>
           <option value="vulnerability">Vulnérabilité</option>
-          <option value="correlated">Corrélé</option>
         </select>
       </div>
 
@@ -57,8 +55,6 @@ export default function IncidentFilters({ filters, setFilters, onReset }) {
           <option value="critical">Critical</option>
           <option value="high">High</option>
           <option value="medium">Medium</option>
-          <option value="low">Low</option>
-          <option value="info">Info</option>
         </select>
       </div>
 
