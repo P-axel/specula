@@ -256,10 +256,7 @@ function TimelineBlock({ timeline }) {
 
 // ── Main panel ────────────────────────────────────────────────────────────────
 
-export default function IncidentDetailPanel({ incident, linkedAlerts }) {
-  // Local status override (frontend-only — incidents are computed server-side)
-  const [localStatus, setLocalStatus] = useState(null);
-
+export default function IncidentDetailPanel({ incident, linkedAlerts, onStatusChange }) {
   if (!incident) {
     return (
       <div className="incident-panel-empty">
@@ -280,7 +277,7 @@ export default function IncidentDetailPanel({ incident, linkedAlerts }) {
   const registryKeys = normalizeList(incident.registry_keys);
   const evidence = normalizeList(incident.evidence);
   const timeline = normalizeList(incident.timeline);
-  const currentStatus = localStatus ?? incident.status ?? "open";
+  const currentStatus = incident.status ?? "open";
 
   return (
     <div className="incident-detail-panel">
@@ -303,7 +300,7 @@ export default function IncidentDetailPanel({ incident, linkedAlerts }) {
       {/* Status toggle */}
       <StatusToggle
         status={currentStatus}
-        onChange={setLocalStatus}
+        onChange={(next) => onStatusChange?.(incident.id, next)}
       />
 
       <p className="incident-detail-description" style={{ marginTop: 14 }}>
