@@ -969,3 +969,119 @@
 .incident-geo--unknown {
   color: #5a6a82;
 }
+/* ── Threat Intelligence (abuse.ch) ─────────────────────────────────────────── */
+.threat-intel-block {
+  border-radius: 6px;
+  border: 1px solid rgba(255, 170, 0, 0.25);
+  background: rgba(255, 170, 0, 0.04);
+  padding: 14px;
+  margin-bottom: 4px;
+}
+
+.threat-intel-block--bad {
+  border-color: rgba(255, 34, 68, 0.4);
+  background: rgba(255, 34, 68, 0.05);
+  box-shadow: 0 0 16px rgba(255, 34, 68, 0.06);
+}
+
+.threat-intel-block h4 {
+  margin: 0 0 12px 0;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--c-text-dim, #6899b4);
+}
+
+.threat-intel-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+}
+
+.threat-intel-badge--bad {
+  background: rgba(255, 34, 68, 0.15);
+  color: #ff2244;
+  border: 1px solid rgba(255, 34, 68, 0.4);
+  text-shadow: 0 0 8px rgba(255, 34, 68, 0.5);
+}
+
+.threat-intel-badge--warn {
+  background: rgba(255, 170, 0, 0.12);
+  color: #ffaa00;
+  border: 1px solid rgba(255, 170, 0, 0.35);
+}
+
+.threat-intel-hits {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.threat-intel-hit {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 5px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.threat-intel-hit__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.threat-intel-ioc {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.9rem;
+  color: #7ec8e3;
+  flex: 1;
+}
+
+.threat-intel-hit__row {
+  display: flex;
+  gap: 10px;
+  font-size: 0.82rem;
+  align-items: baseline;
+}
+
+.threat-intel-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--c-text-dim, #6899b4);
+  min-width: 110px;
+  flex-shrink: 0;
+}
+
+.threat-intel-value {
+  color: var(--c-text, #cce4f4);
+}
+
+.threat-intel-value--malware {
+  color: #ff6b35;
+  font-weight: 700;
+  font-family: 'Share Tech Mono', monospace;
+}
+
+.threat-intel-ref {
+  font-size: 0.72rem;
+  color: var(--c-cyan-dim, #1a8faa);
+  word-break: break-all;
+}
+
+.incident-chip--source {
+  background: rgba(0, 229, 255, 0.08);
+  color: var(--c-cyan, #00e5ff);
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  font-size: 0.62rem;
+  padding: 1px 6px;
+}

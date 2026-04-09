@@ -232,6 +232,27 @@ class UnifiedIncidentsService:
 
         return result
 
+    def _enrich_incidents(self, incidents: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Enrichit les incidents avec la threat intelligence abuse.ch (ThreatFox + URLhaus)."""
+        try:
+            from enrichment.ioc_enricher import enrich_incident
+        except ImportError:
+            return incidents
+
+        for incident in incidents:
+            try:
+                ti = enrich_incident(incident)
+                if ti:
+                    incident["threat_intel"] = ti
+                    # Booster le risk_score si l'IP est connue malveillante
+                    if ti.get("is_known_bad"):
+                        current = int(incident.get("risk_score") or 0)
+                        bonus = int(ti.get("reputation_score", 0) * 0.3)
+                        incident["risk_score"] = min(100, current + bonus)
+            except Exception:
+                pass
+        return incidents
+
     def _compute_incidents(self, fetch_limit: int) -> list[dict[str, Any]]:
         detections = self.aggregator.list_detections(limit=fetch_limit)
         incidents = self.correlator.correlate(detections)
@@ -239,6 +260,7 @@ class UnifiedIncidentsService:
             incidents = [self._detection_to_incident(item) for item in detections]
         incidents = self._dedupe_incidents(incidents)
         incidents = self._apply_lifecycle(incidents)
+        incidents = self._enrich_incidents(incidents)
         return incidents
 
     def list_incidents(self, limit: int = 50) -> list[dict[str, Any]]:
