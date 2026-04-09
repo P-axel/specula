@@ -106,22 +106,26 @@ cat > "${OSSEC_CONF}" << EOF
 EOF
 
 # ─── Enregistrement auprès du manager ────────────────────────────
-echo "[specula/wazuh-agent] Attente du manager ${MANAGER}..."
-for attempt in $(seq 1 30); do
-    if /var/ossec/bin/agent-auth \
-        -m "${MANAGER}" \
-        -A "${AGENT_NAME}" \
-        -v 2>/dev/null; then
-        echo "[specula/wazuh-agent] Enregistrement réussi (tentative ${attempt}/30)"
-        break
-    fi
-    if [ "${attempt}" -eq 30 ]; then
-        echo "[specula/wazuh-agent] WARN: Impossible de s'enregistrer — démarrage quand même"
-    else
-        echo "[specula/wazuh-agent] Tentative ${attempt}/30... nouvelle tentative dans 5s"
-        sleep 5
-    fi
-done
+# Si les clés existent déjà (volume persistant), pas besoin de re-s'enregistrer.
+if [ -s /var/ossec/etc/client.keys ]; then
+    echo "[specula/wazuh-agent] Clés existantes trouvées — enregistrement déjà effectué"
+else
+    echo "[specula/wazuh-agent] Attente du manager ${MANAGER}..."
+    for attempt in $(seq 1 30); do
+        if /var/ossec/bin/agent-auth \
+            -m "${MANAGER}" \
+            -A "${AGENT_NAME}" 2>/dev/null; then
+            echo "[specula/wazuh-agent] Enregistrement réussi (tentative ${attempt}/30)"
+            break
+        fi
+        if [ "${attempt}" -eq 30 ]; then
+            echo "[specula/wazuh-agent] WARN: Impossible de s'enregistrer — démarrage quand même"
+        else
+            echo "[specula/wazuh-agent] Tentative ${attempt}/30... nouvelle tentative dans 5s"
+            sleep 5
+        fi
+    done
+fi
 
 # ─── Démarrage de l'agent ─────────────────────────────────────────
 echo "[specula/wazuh-agent] Démarrage..."
