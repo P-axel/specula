@@ -248,6 +248,71 @@ function GeoLabel({ geo }) {
   );
 }
 
+// ── Threat Intel block ────────────────────────────────────────────────────────
+
+function ThreatIntelBlock({ threatIntel }) {
+  if (!threatIntel?.hits?.length) return null;
+
+  const isKnownBad = threatIntel.is_known_bad;
+  const hits = threatIntel.hits;
+
+  return (
+    <div className={`incident-detail-block threat-intel-block${isKnownBad ? " threat-intel-block--bad" : ""}`}>
+      <h4>
+        <span className={`threat-intel-badge${isKnownBad ? " threat-intel-badge--bad" : " threat-intel-badge--warn"}`}>
+          {isKnownBad ? "⚠ IoC CONNU MALVEILLANT" : "IoC — Réputation dégradée"}
+        </span>
+      </h4>
+      <div className="threat-intel-hits">
+        {hits.map((hit, i) => (
+          <div key={i} className="threat-intel-hit">
+            <div className="threat-intel-hit__header">
+              <code className="threat-intel-ioc">{hit.ioc}</code>
+              <span className="incident-chip incident-chip--source">{hit.source}</span>
+            </div>
+            {hit.malware && (
+              <div className="threat-intel-hit__row">
+                <span className="threat-intel-label">Malware</span>
+                <span className="threat-intel-value threat-intel-value--malware">{hit.malware}</span>
+              </div>
+            )}
+            {hit.threat_type && (
+              <div className="threat-intel-hit__row">
+                <span className="threat-intel-label">Type</span>
+                <span className="threat-intel-value">{hit.threat_type}</span>
+              </div>
+            )}
+            {hit.confidence > 0 && (
+              <div className="threat-intel-hit__row">
+                <span className="threat-intel-label">Confiance</span>
+                <span className="threat-intel-value">{hit.confidence}%</span>
+              </div>
+            )}
+            {hit.urls_count > 0 && (
+              <div className="threat-intel-hit__row">
+                <span className="threat-intel-label">URLs malveillantes</span>
+                <span className="threat-intel-value">{hit.urls_count}</span>
+              </div>
+            )}
+            {hit.first_seen && (
+              <div className="threat-intel-hit__row">
+                <span className="threat-intel-label">1er signalement</span>
+                <span className="threat-intel-value">{hit.first_seen}</span>
+              </div>
+            )}
+            {hit.urlhaus_ref && (
+              <div className="threat-intel-hit__row">
+                <span className="threat-intel-label">Référence</span>
+                <span className="threat-intel-value threat-intel-ref">{hit.urlhaus_ref}</span>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── MITRE block ───────────────────────────────────────────────────────────────
 
 function MitreBlock({ incident }) {
@@ -429,6 +494,9 @@ export default function IncidentDetailPanel({ incident, linkedAlerts, onStatusCh
         />
         <SourceBadge source={incident.source} />
       </div>
+
+      {/* Threat Intelligence — abuse.ch */}
+      <ThreatIntelBlock threatIntel={incident.threat_intel} />
 
       <p className="incident-detail-description" style={{ marginTop: 14 }}>
         {formatRenderableValue(incident.description || "-")}
