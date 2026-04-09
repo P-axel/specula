@@ -7,12 +7,23 @@ import {
   XAxis,
   YAxis,
   Tooltip,
+  Legend,
   PieChart,
   Pie,
   BarChart,
   Bar,
   Cell,
 } from "recharts";
+
+const CHART_TOOLTIP_STYLE = {
+  backgroundColor: "#082030",
+  border: "1px solid #24607e",
+  borderRadius: "6px",
+  color: "#cce4f4",
+  fontSize: "0.8rem",
+};
+const CHART_AXIS_STYLE = { fill: "#6899b4", fontSize: 11 };
+const CHART_GRID_COLOR = "#183f58";
 
 import { useSocData } from "../../../shared/providers/SocDataProvider";
 import PageHero from "../../../shared/ui/PageHero";
@@ -119,6 +130,8 @@ export default function DashboardPage() {
     const normalizedIncidents = incidentsRaw.map((incident) => ({
       severity: getPriorityLabel(incident?.severity || incident?.priority),
       status: String(incident?.status || "open").toLowerCase(),
+      first_seen: incident?.first_seen || incident?.timestamp,
+      engines: incident?.engines || [],
     }));
 
     const incidentsCount = normalizedIncidents.length;
@@ -134,6 +147,39 @@ export default function DashboardPage() {
 
     const openIncidents = normalizedIncidents.filter((incident) =>
       isOpenIncidentStatus(incident.status)
+    ).length;
+
+    const investigatingIncidents = normalizedIncidents.filter(
+      (i) => i.status === "investigating"
+    ).length;
+
+    const resolvedIncidents = normalizedIncidents.filter(
+      (i) => i.status === "resolved" || i.status === "false_positive"
+    ).length;
+
+    // Dwell time : âge du plus vieil incident ouvert critique/high
+    const openCriticalHigh = incidentsRaw.filter(
+      (i) =>
+        isOpenIncidentStatus(String(i?.status || "open").toLowerCase()) &&
+        (getPriorityLabel(i?.severity || i?.priority) === "critical" ||
+          getPriorityLabel(i?.severity || i?.priority) === "high")
+    );
+    let oldestCriticalMs = 0;
+    for (const i of openCriticalHigh) {
+      const ts = i.first_seen || i.timestamp;
+      if (ts) {
+        const age = Date.now() - new Date(ts).getTime();
+        if (age > oldestCriticalMs) oldestCriticalMs = age;
+      }
+    }
+    const oldestCriticalAge = oldestCriticalMs > 0 ? formatRelative(new Date(Date.now() - oldestCriticalMs).toISOString()) : null;
+
+    // Breakdown par moteur
+    const suricataCount = incidentsRaw.filter(
+      (i) => (i.engines || []).includes("suricata") || i.engine === "suricata"
+    ).length;
+    const wazuhCount = incidentsRaw.filter(
+      (i) => (i.engines || []).includes("wazuh") || i.engine === "wazuh"
     ).length;
 
     const assetsTotal = overview?.assets?.total || 0;
@@ -164,6 +210,11 @@ export default function DashboardPage() {
       criticalIncidents,
       highIncidents,
       openIncidents,
+      investigatingIncidents,
+      resolvedIncidents,
+      oldestCriticalAge,
+      suricataCount,
+      wazuhCount,
       activeCoverage,
       socDetections,
       socEvents,
@@ -283,24 +334,36 @@ export default function DashboardPage() {
 
         <div className="dashboard-overview-grid" style={{ marginTop: "12px" }}>
           <StatCard
-            title="Incidents connus"
-            value={localStats.incidentsCount}
-            hint="Volume total d’incidents actuellement visibles dans Specula."
-          />
-          <StatCard
             title="Incidents high/critical"
             value={localStats.highIncidents}
-            hint="Incidents les plus prioritaires pour l’investigation."
+            hint="Incidents prioritaires à traiter en premier."
           />
           <StatCard
-            title="Conversion en incidents"
-            value={`${localStats.incidentConversionRate}%`}
-            hint="Part des détections SOC qui aboutissent à un incident visible."
+            title="En investigation"
+            value={localStats.investigatingIncidents}
+            hint="Incidents pris en charge par un analyste."
           />
           <StatCard
-            title="Corrélation réseau"
-            value={`${localStats.networkCorrelationRate}%`}
-            hint="Part des détections réseau qualifiées en corrélations réseau."
+            title="Résolus / FP"
+            value={localStats.resolvedIncidents}
+            hint="Incidents fermés (résolus + faux positifs)."
+          />
+          <StatCard
+            title="Dwell time critique"
+            value={localStats.oldestCriticalAge || "—"}
+            hint={localStats.oldestCriticalAge
+              ? "Âge du plus vieil incident critique/high ouvert non traité."
+              : "Aucun incident critique ouvert."}
+          />
+          <StatCard
+            title="Incidents Suricata"
+            value={localStats.suricataCount}
+            hint="Incidents provenant du moteur réseau Suricata."
+          />
+          <StatCard
+            title="Incidents Wazuh"
+            value={localStats.wazuhCount}
+            hint="Incidents provenant du moteur endpoint Wazuh."
           />
         </div>
       </PageSection>
@@ -324,29 +387,39 @@ export default function DashboardPage() {
               <div className="dashboard-chart-shell">
                 <ResponsiveContainer width="100%" height={280}>
                   <LineChart data={activity}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#223250" />
-                    <XAxis dataKey="time" stroke="#93a8c8" />
-                    <YAxis stroke="#93a8c8" />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="count" stroke="#7db3ff" strokeWidth={2} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} />
+                    <XAxis dataKey="time" tick={CHART_AXIS_STYLE} axisLine={{ stroke: CHART_GRID_COLOR }} tickLine={false} />
+                    <YAxis tick={CHART_AXIS_STYLE} axisLine={{ stroke: CHART_GRID_COLOR }} tickLine={false} />
+                    <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+                    <Line type="monotone" dataKey="count" stroke="#00e5ff" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: "#00e5ff" }} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
             </PageSection>
 
-            <PageSection title="Niveau de sévérité observé">
+            <PageSection title="Répartition par sévérité">
               <div className="dashboard-chart-shell">
                 <ResponsiveContainer width="100%" height={280}>
                   <PieChart>
-                    <Pie data={severityData} dataKey="value" nameKey="name" outerRadius={95}>
-                      {severityData.map((entry, index) => (
+                    <Pie
+                      data={severityData.filter(d => d.value > 0)}
+                      dataKey="value"
+                      nameKey="name"
+                      outerRadius={95}
+                      innerRadius={45}
+                      paddingAngle={3}
+                    >
+                      {severityData.filter(d => d.value > 0).map((entry, index) => (
                         <Cell
                           key={`severity-${entry.name}-${index}`}
                           fill={SEVERITY_COLORS[index % SEVERITY_COLORS.length]}
                         />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+                    <Legend
+                      formatter={(value) => <span style={{ color: "#cce4f4", fontSize: "0.78rem" }}>{value}</span>}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -485,12 +558,12 @@ export default function DashboardPage() {
             <PageSection title="Actifs les plus exposés">
               <div className="dashboard-chart-shell">
                 <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={topAssets}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#223250" />
-                    <XAxis dataKey="name" stroke="#93a8c8" />
-                    <YAxis stroke="#93a8c8" />
-                    <Tooltip />
-                    <Bar dataKey="count" fill="#7db3ff" radius={[6, 6, 0, 0]} />
+                  <BarChart data={topAssets} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} horizontal={false} />
+                    <XAxis type="number" tick={CHART_AXIS_STYLE} axisLine={{ stroke: CHART_GRID_COLOR }} tickLine={false} />
+                    <YAxis type="category" dataKey="name" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} width={90} />
+                    <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+                    <Bar dataKey="count" fill="#00e5ff" radius={[0, 6, 6, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -499,12 +572,12 @@ export default function DashboardPage() {
             <PageSection title="Catégories dominantes">
               <div className="dashboard-chart-shell">
                 <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={topCategories}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#223250" />
-                    <XAxis dataKey="name" stroke="#93a8c8" />
-                    <YAxis stroke="#93a8c8" />
-                    <Tooltip />
-                    <Bar dataKey="count" fill="#89e6cb" radius={[6, 6, 0, 0]} />
+                  <BarChart data={topCategories} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} horizontal={false} />
+                    <XAxis type="number" tick={CHART_AXIS_STYLE} axisLine={{ stroke: CHART_GRID_COLOR }} tickLine={false} />
+                    <YAxis type="category" dataKey="name" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} width={110} />
+                    <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+                    <Bar dataKey="count" fill="#00ffcc" radius={[0, 6, 6, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

@@ -1,23 +1,120 @@
 COMPOSE  = docker compose -f deploy/docker/core/docker-compose.yml
 ENV_FILE = .env
 
-.PHONY: up up-wazuh down reset rebuild logs ps wazuh-certs help
+.PHONY: up down reset rebuild logs logs-core logs-suricata logs-wazuh ps open check wazuh-certs agent-install agent-status help
 
 # ─── Aide ──────────────────────────────────────────────────────
 help:
 	@echo ""
-	@echo "Specula — Commandes disponibles"
-	@echo "════════════════════════════════"
-	@echo "  make up       Démarre Specula (choix interactif des modules)"
-	@echo "  make down     Arrête et supprime les conteneurs"
-	@echo "  make rebuild  Reconstruit les images et redémarre"
-	@echo "  make logs     Suit les logs en temps réel"
-	@echo "  make ps       Liste les services actifs"
+	@echo "  Specula — Commandes disponibles"
+	@echo "  ════════════════════════════════════════════"
 	@echo ""
-	@echo "Accès après démarrage :"
-	@echo "  Console   : http://localhost:5173"
-	@echo "  API Docs  : http://localhost:8000/docs"
+	@echo "  Démarrage"
+	@echo "    make check           Vérifie l'environnement (Docker, ports, disque)"
+	@echo "    make up              Démarre Specula (choix interactif)"
+	@echo "    make open            Ouvre la console dans le navigateur"
+	@echo "    make down            Arrête et supprime les conteneurs"
+	@echo "    make rebuild         Reconstruit les images et redémarre"
 	@echo ""
+	@echo "  Logs (filtrés)"
+	@echo "    make logs            Tous les services"
+	@echo "    make logs-core       Backend + Console uniquement"
+	@echo "    make logs-suricata   IDS réseau uniquement"
+	@echo "    make logs-wazuh      Stack Wazuh uniquement"
+	@echo ""
+	@echo "  Agents Wazuh"
+	@echo "    make agent-install   Installe un agent natif sur cette machine (sudo)"
+	@echo "    make agent-status    Vérifie la connexion de l'agent au manager"
+	@echo ""
+	@echo "  Accès"
+	@echo "    Console   : http://localhost:5173"
+	@echo "    API Docs  : http://localhost:8000/docs"
+	@echo ""
+
+# ─── Vérification environnement ────────────────────────────────
+check:
+	@set -e; \
+	OK=1; \
+	echo ""; \
+	echo "  Specula — Vérification de l'environnement"; \
+	echo "  ══════════════════════════════════════════"; \
+	echo ""; \
+	echo "  Prérequis système :"; \
+	if docker info >/dev/null 2>&1; then \
+		echo "  [OK] Docker en cours d'exécution"; \
+	else \
+		echo "  [KO] Docker inaccessible — sudo systemctl start docker"; \
+		OK=0; \
+	fi; \
+	if docker compose version >/dev/null 2>&1; then \
+		echo "  [OK] Docker Compose v2 disponible"; \
+	else \
+		echo "  [KO] Docker Compose v2 introuvable"; \
+		OK=0; \
+	fi; \
+	if command -v curl >/dev/null 2>&1; then \
+		echo "  [OK] curl disponible"; \
+	else \
+		echo "  [KO] curl manquant — sudo apt-get install curl"; \
+		OK=0; \
+	fi; \
+	DISK_MB=$$(df -m . | awk 'NR==2 {print $$4}'); \
+	if [ "$$DISK_MB" -ge 5120 ]; then \
+		echo "  [OK] Espace disque : $$((DISK_MB / 1024)) Go disponible"; \
+	else \
+		echo "  [KO] Espace insuffisant : $$DISK_MB Mo (5 Go requis pour Wazuh)"; \
+		OK=0; \
+	fi; \
+	echo ""; \
+	echo "  Ports réseau :"; \
+	for PORT in 5173 8000 1514 1515 9200; do \
+		if ss -tlnp 2>/dev/null | grep -q ":$$PORT " || \
+		   lsof -i :$$PORT >/dev/null 2>&1; then \
+			echo "  [KO] Port $$PORT déjà utilisé"; \
+			OK=0; \
+		else \
+			echo "  [OK] Port $$PORT disponible"; \
+		fi; \
+	done; \
+	echo ""; \
+	if docker ps --format '{{.Names}}' 2>/dev/null | grep -q 'specula-backend'; then \
+		echo "  Services Specula (démarrés) :"; \
+		if curl -sf http://localhost:8000/health >/dev/null 2>&1; then \
+			echo "  [OK] API backend  — http://localhost:8000/docs"; \
+		else \
+			echo "  [--] API backend  — pas encore prête"; \
+		fi; \
+		if curl -sf http://localhost:5173 >/dev/null 2>&1; then \
+			echo "  [OK] Console      — http://localhost:5173"; \
+		else \
+			echo "  [--] Console      — pas encore prête"; \
+		fi; \
+		if docker ps --format '{{.Names}}' | grep -q 'wazuh-manager'; then \
+			if curl -sk https://localhost:55000 >/dev/null 2>&1; then \
+				echo "  [OK] Wazuh Manager — https://localhost:55000"; \
+			else \
+				echo "  [--] Wazuh Manager — en démarrage"; \
+			fi; \
+		fi; \
+		echo ""; \
+	fi; \
+	if [ "$$OK" = "1" ]; then \
+		echo "  Tout est prêt. Lance : make up"; \
+	else \
+		echo "  Corrige les points [KO] avant de continuer."; \
+	fi; \
+	echo ""
+
+# ─── Ouvrir la console ──────────────────────────────────────────
+open:
+	@URL="http://localhost:5173"; \
+	if curl -sf "$$URL" >/dev/null 2>&1; then \
+		xdg-open "$$URL" 2>/dev/null || open "$$URL" 2>/dev/null || \
+		echo "[specula] Ouvre manuellement : $$URL"; \
+	else \
+		echo "[specula] La console n'est pas encore démarrée."; \
+		echo "          Lance d'abord : make up"; \
+	fi
 
 # ─── Création .env ─────────────────────────────────────────────
 .env:
@@ -87,8 +184,18 @@ _start-wazuh: wazuh-certs
 	@set -a; . ./$(ENV_FILE); set +a; \
 	sed -i 's/SPECULA_ENABLE_WAZUH=false/SPECULA_ENABLE_WAZUH=true/' $(ENV_FILE) 2>/dev/null || true; \
 	SURICATA_INTERFACE=${SURICATA_INTERFACE} $(COMPOSE) --env-file $(ENV_FILE) --profile wazuh up -d --remove-orphans
-	@echo "[specula] Initialisation sécurité Wazuh indexer (~15s)..."
-	@sleep 15
+	@echo "[specula] Attente du démarrage de l'indexer Wazuh..."; \
+	n=0; while [ $$n -lt 40 ]; do \
+		if curl -sk https://localhost:9200 >/dev/null 2>&1; then \
+			echo "[specula] Indexer prêt."; break; \
+		fi; \
+		printf "."; sleep 3; n=$$((n+1)); \
+	done; \
+	if [ $$n -eq 40 ]; then \
+		echo ""; echo "[specula] WARN: timeout — tentative d'initialisation quand même..."; \
+	else \
+		echo ""; \
+	fi
 	@$(MAKE) --no-print-directory wazuh-security-init
 	@$(MAKE) --no-print-directory wazuh-enable-vuln
 	@echo ""
@@ -178,9 +285,97 @@ reset:
 logs:
 	@$(COMPOSE) --env-file $(ENV_FILE) --profile wazuh logs -f
 
+logs-core:
+	@$(COMPOSE) --env-file $(ENV_FILE) logs -f specula-backend specula-console
+
+logs-suricata:
+	@$(COMPOSE) --env-file $(ENV_FILE) logs -f specula-suricata
+
+logs-wazuh:
+	@$(COMPOSE) --env-file $(ENV_FILE) --profile wazuh logs -f wazuh-manager wazuh-indexer wazuh-agent-host
+
 # ─── Statut ────────────────────────────────────────────────────
 ps:
 	@$(COMPOSE) --env-file $(ENV_FILE) --profile wazuh ps
+
+# ─── Agent Wazuh natif sur la machine hôte ─────────────────────────
+# Installe le paquet wazuh-agent sur le système hôte (pas dans Docker)
+# et le connecte au wazuh-manager exposé sur localhost:1514/1515.
+# Nécessite sudo. Version synchronisée avec le manager (4.7.2).
+WAZUH_VERSION ?= 4.7.2
+WAZUH_AGENT_NAME ?= $(shell hostname)
+
+agent-install:
+	@set -e; \
+	echo ""; \
+	echo "  ╔═══════════════════════════════════════╗"; \
+	echo "  ║    Specula — Installation agent       ║"; \
+	echo "  ╚═══════════════════════════════════════╝"; \
+	echo ""; \
+	if systemctl is-active --quiet wazuh-agent 2>/dev/null; then \
+		echo "[specula] L'agent Wazuh est déjà installé et actif."; \
+		echo "          Pour vérifier sa connexion : make agent-status"; \
+		exit 0; \
+	fi; \
+	if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^wazuh-manager$$'; then \
+		echo "[specula] ERREUR : le manager Wazuh n'est pas démarré."; \
+		echo "          Lance d'abord :  make up  (puis choisir l'option 2)"; \
+		echo "          Ensuite relance : make agent-install"; \
+		exit 1; \
+	fi; \
+	if ! command -v apt-get >/dev/null 2>&1; then \
+		echo "[specula] ERREUR : apt-get introuvable."; \
+		echo "          L'installation automatique nécessite Debian ou Ubuntu."; \
+		echo "          Voir le README pour l'installation manuelle."; \
+		exit 1; \
+	fi; \
+	echo "[specula] Ajout du dépôt Wazuh..."; \
+	curl -sS https://packages.wazuh.com/key/GPG-KEY-WAZUH \
+		| sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/wazuh.gpg; \
+	echo "deb [signed-by=/usr/share/keyrings/wazuh.gpg arch=amd64] https://packages.wazuh.com/4.x/apt/ stable main" \
+		| sudo tee /etc/apt/sources.list.d/wazuh.list > /dev/null; \
+	echo "[specula] Mise à jour des paquets..."; \
+	sudo apt-get update; \
+	echo "[specula] Installation de wazuh-agent $(WAZUH_VERSION)..."; \
+	sudo WAZUH_MANAGER="127.0.0.1" \
+	     WAZUH_AGENT_NAME="$(WAZUH_AGENT_NAME)" \
+	     apt-get install -y wazuh-agent=$(WAZUH_VERSION)-1; \
+	sudo systemctl daemon-reload; \
+	sudo systemctl enable --now wazuh-agent; \
+	echo "[specula] Agent natif démarré, attente de l'enrôlement..."; \
+	sleep 5; \
+	STALE=$$(docker exec wazuh-manager /var/ossec/bin/agent_control -l 2>/dev/null \
+		| grep "specula-host" | grep "Disconnected" \
+		| grep -o 'ID: [0-9]*' | awk '{print $$2}'); \
+	if [ -n "$$STALE" ]; then \
+		echo "[specula] Nettoyage de l'agent container bloqué (ID $$STALE)..."; \
+		printf "R\n$$STALE\ny\nQ\n" \
+			| docker exec -i wazuh-manager /var/ossec/bin/manage_agents >/dev/null 2>&1 || true; \
+		docker restart wazuh-agent-host >/dev/null 2>&1 || true; \
+		sleep 5; \
+	fi; \
+	echo ""; \
+	echo "  ════════════════════════════════════════════════"; \
+	echo "  Agent natif  : $(WAZUH_AGENT_NAME) ($$(systemctl is-active wazuh-agent))"; \
+	echo "  Manager      : 127.0.0.1:1514"; \
+	echo ""; \
+	echo "  Agents connectés au manager :"; \
+	docker exec wazuh-manager /var/ossec/bin/agent_control -l 2>/dev/null \
+		| grep -v "^$$" | grep -v "agentless" \
+		| sed 's/^/    /'; \
+	echo "  ════════════════════════════════════════════════"; \
+	echo ""
+
+agent-status:
+	@echo "[specula] Statut de l'agent Wazuh local :"
+	@systemctl is-active wazuh-agent 2>/dev/null \
+		&& echo "  Service : actif" \
+		|| echo "  Service : inactif (agent non installé ?)"
+	@echo ""
+	@echo "[specula] Agents connectés au manager :"
+	@docker exec wazuh-manager /var/ossec/bin/agent_control -l 2>/dev/null \
+		|| echo "  Le manager Wazuh n'est pas démarré (make up -> option 2)"
+	@echo ""
 
 # ─── Certificats Wazuh ─────────────────────────────────────────
 wazuh-certs:

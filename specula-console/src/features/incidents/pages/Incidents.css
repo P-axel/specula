@@ -170,7 +170,8 @@
 .incident-list-item {
   width: 100%;
   border: 1px solid #243554;
-  border-radius: 18px;
+  border-left: 3px solid var(--sev-bar-color, #243554);
+  border-radius: 6px 18px 18px 6px;
   background:
     linear-gradient(180deg, rgba(18, 29, 52, 0.96) 0%, rgba(11, 20, 38, 0.98) 100%);
   padding: 18px;
@@ -210,6 +211,58 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+}
+
+.incident-list-item__right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.incident-age {
+  font-size: 0.75rem;
+  font-family: var(--font-mono, monospace);
+  color: #6899b4;
+  white-space: nowrap;
+  padding: 2px 0;
+}
+
+.incident-age--urgent {
+  color: #ff6b35;
+  font-weight: 700;
+}
+
+.incident-signals-badge {
+  font-size: 0.72rem;
+  font-family: var(--font-mono, monospace);
+  color: #cce4f4;
+  background: rgba(0, 229, 255, 0.1);
+  border: 1px solid rgba(0, 229, 255, 0.22);
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.incident-list-item.is-fp {
+  opacity: 0.55;
+}
+
+.incident-takeover-btn {
+  font-size: 0.75rem;
+  color: #ffaa00;
+  border: 1px solid rgba(255, 170, 0, 0.35);
+  border-radius: 999px;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  background: rgba(255, 170, 0, 0.06);
+}
+
+.incident-takeover-btn:hover {
+  background: rgba(255, 170, 0, 0.15);
+  color: #ffc940;
 }
 
 .incident-list-item__heading {
@@ -607,25 +660,25 @@
   }
 }
 
-/* ── Status toggle ─────────────────────────────────────────────────────────── */
-.incident-status-toggle {
+/* ── Status selector ───────────────────────────────────────────────────────── */
+.incident-status-btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 14px;
+  gap: 7px;
+  padding: 6px 16px;
   border-radius: 999px;
   border: 1px solid var(--status-color, #4f7fd9);
-  background: transparent;
-  color: #e5edf7;
+  background: color-mix(in srgb, var(--status-color) 10%, transparent);
+  color: var(--status-color, #4f7fd9);
   font-size: 0.84rem;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s ease, box-shadow 0.15s ease;
 }
 
-.incident-status-toggle:hover {
-  background: rgba(255, 255, 255, 0.05);
-  box-shadow: 0 0 0 2px var(--status-color, #4f7fd9) inset;
+.incident-status-btn:hover {
+  background: color-mix(in srgb, var(--status-color) 20%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--status-color) 35%, transparent);
 }
 
 .incident-status-dot {
@@ -633,6 +686,204 @@
   height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+/* ── Notes & pièces jointes ─────────────────────────────────────────────────── */
+.incident-notes {
+  border-top: 1px solid rgba(0, 229, 255, 0.12);
+  margin-top: 8px;
+  padding-top: 16px;
+}
+
+.incident-notes-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.incident-notes-input {
+  width: 100%;
+  padding: 10px 12px;
+  background: rgba(0, 229, 255, 0.04);
+  border: 1px solid rgba(0, 229, 255, 0.18);
+  border-radius: 10px;
+  color: var(--c-text, #b8d8e8);
+  font-family: inherit;
+  font-size: 0.85rem;
+  resize: vertical;
+  transition: border-color 0.15s;
+}
+
+.incident-notes-input:focus {
+  outline: none;
+  border-color: rgba(0, 229, 255, 0.5);
+}
+
+.incident-notes-submit {
+  align-self: flex-end;
+  padding: 6px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 229, 255, 0.4);
+  background: rgba(0, 229, 255, 0.08);
+  color: var(--c-cyan, #00e5ff);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+
+.incident-notes-submit:hover:not(:disabled) {
+  background: rgba(0, 229, 255, 0.15);
+  box-shadow: 0 0 8px rgba(0, 229, 255, 0.25);
+}
+
+.incident-notes-submit:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.incident-note-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.incident-note-item {
+  padding: 10px 12px;
+  border: 1px solid rgba(0, 229, 255, 0.1);
+  border-radius: 10px;
+  background: rgba(0, 229, 255, 0.03);
+}
+
+.incident-note-text {
+  font-size: 0.85rem;
+  color: #c5ddf0;
+  white-space: pre-wrap;
+  margin-bottom: 6px;
+}
+
+.incident-note-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: #5a7a99;
+}
+
+.incident-note-delete {
+  background: none;
+  border: none;
+  color: #5a7a99;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+  transition: color 0.15s;
+}
+
+.incident-note-delete:hover {
+  color: #ff2244;
+}
+
+.incident-attachments {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.incident-attach-btn {
+  align-self: flex-start;
+  padding: 5px 14px;
+  border-radius: 8px;
+  border: 1px dashed rgba(0, 229, 255, 0.3);
+  background: transparent;
+  color: #5a8aaa;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.incident-attach-btn:hover {
+  color: var(--c-cyan, #00e5ff);
+  border-color: rgba(0, 229, 255, 0.6);
+}
+
+.incident-attachment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.incident-attachment-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  border: 1px solid rgba(0, 229, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(0, 229, 255, 0.03);
+}
+
+.incident-attachment-name {
+  background: none;
+  border: none;
+  color: var(--c-cyan, #00e5ff);
+  font-size: 0.83rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  flex: 1;
+  text-align: left;
+}
+
+.incident-attachment-size {
+  font-size: 0.75rem;
+  color: #5a7a99;
+  white-space: nowrap;
+}
+
+/* ── Historique statuts ──────────────────────────────────────────────────────── */
+.incident-status-history {
+  border-top: 1px solid rgba(0, 229, 255, 0.1);
+  padding-top: 16px;
+}
+
+.incident-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.incident-history-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: #7a9ab8;
+}
+
+.incident-history-from {
+  color: #5a7a99;
+  font-style: italic;
+}
+
+.incident-history-arrow {
+  color: #3a5a77;
+  font-size: 0.75rem;
+}
+
+.incident-history-to {
+  color: #c0ddf0;
+  font-weight: 600;
+}
+
+.incident-history-ts {
+  margin-left: auto;
+  font-size: 0.75rem;
+  font-family: var(--font-mono, monospace);
+  color: #3a5a77;
 }
 
 /* ── MITRE card ─────────────────────────────────────────────────────────────── */

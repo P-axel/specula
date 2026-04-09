@@ -13,11 +13,15 @@ class WazuhAlertsConnector:
         offset: int = 0,
         q: Optional[str] = None,
         sort: Optional[str] = None,
+        hours: int = 24,
     ) -> List[Dict[str, Any]]:
         """
         Récupère les alertes depuis le Wazuh Indexer via `_search`.
+        Par défaut, seulement les 24 dernières heures.
         """
-        must: List[Dict[str, Any]] = []
+        must: List[Dict[str, Any]] = [
+            {"range": {"@timestamp": {"gte": f"now-{hours}h/h", "lte": "now"}}}
+        ]
 
         if q:
             if q.startswith("rule.level>="):

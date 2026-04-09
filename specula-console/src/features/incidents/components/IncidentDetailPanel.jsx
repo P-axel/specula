@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
+import { useIncidentStore } from "../hooks/useIncidentStore";
 import { KIND_LABELS } from "../lib/incidentConstants";
 import {
   formatDateTime,
@@ -58,38 +59,170 @@ function SourceBadge({ source }) {
   return <span className="incident-chip">{label}</span>;
 }
 
-// ── Status toggle ─────────────────────────────────────────────────────────────
+// ── Status selector ───────────────────────────────────────────────────────────
 
-const STATUS_CYCLE = ["open", "investigating", "resolved"];
-const STATUS_LABELS = {
-  open: "Ouvert",
-  investigating: "En cours",
-  resolved: "Résolu",
-};
-const STATUS_COLORS = {
-  open: "#e74c3c",
-  investigating: "#e67e22",
-  resolved: "#27ae60",
-};
+const STATUS_OPTIONS = [
+  { value: "open", label: "Ouvert", color: "#ff2244" },
+  { value: "investigating", label: "En cours", color: "#ffaa00" },
+  { value: "resolved", label: "Résolu", color: "#39ff14" },
+];
 
-function StatusToggle({ status, onChange }) {
-  const current = STATUS_CYCLE.includes(status) ? status : "open";
-  const next = STATUS_CYCLE[(STATUS_CYCLE.indexOf(current) + 1) % STATUS_CYCLE.length];
+function StatusSelector({ status, onChange }) {
+  const idx = STATUS_OPTIONS.findIndex((o) => o.value === status);
+  const current = idx >= 0 ? STATUS_OPTIONS[idx] : STATUS_OPTIONS[0];
+  const next = STATUS_OPTIONS[(idx + 1) % STATUS_OPTIONS.length];
 
   return (
     <button
       type="button"
-      className="incident-status-toggle"
-      style={{ "--status-color": STATUS_COLORS[current] }}
-      onClick={() => onChange(next)}
-      title={`Passer à : ${STATUS_LABELS[next]}`}
+      className="incident-status-btn"
+      style={{ "--status-color": current.color }}
+      onClick={() => onChange(next.value)}
+      title={`Passer à : ${next.label}`}
     >
-      <span
-        className="incident-status-dot"
-        style={{ background: STATUS_COLORS[current] }}
-      />
-      {STATUS_LABELS[current]}
+      <span className="incident-status-dot" style={{ background: current.color }} />
+      {current.label}
     </button>
+  );
+}
+
+// ── Historique des statuts ────────────────────────────────────────────────────
+
+const STATUS_LABELS_MAP = {
+  open: "Ouvert",
+  investigating: "En cours",
+  resolved: "Résolu",
+  false_positive: "Faux positif",
+};
+
+function StatusHistory({ incidentId }) {
+  const { statusHistory } = useIncidentStore(incidentId);
+  if (!statusHistory?.length) return null;
+
+  return (
+    <div className="incident-detail-block incident-status-history">
+      <h4>Historique des statuts</h4>
+      <div className="incident-history-list">
+        {[...statusHistory].reverse().map((entry, i) => (
+          <div key={i} className="incident-history-item">
+            <span className="incident-history-from">
+              {STATUS_LABELS_MAP[entry.from] ?? entry.from}
+            </span>
+            <span className="incident-history-arrow">→</span>
+            <span className="incident-history-to">
+              {STATUS_LABELS_MAP[entry.to] ?? entry.to}
+            </span>
+            <span className="incident-history-ts">
+              {new Date(entry.ts).toLocaleString("fr-FR")}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Notes & pièces jointes ────────────────────────────────────────────────────
+
+function IncidentNotes({ incidentId }) {
+  const {
+    comments, attachments,
+    addComment, deleteComment,
+    addAttachment, deleteAttachment, downloadAttachment,
+  } = useIncidentStore(incidentId);
+
+  const [draft, setDraft] = useState("");
+  const fileInputRef = useRef(null);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    addComment(draft);
+    setDraft("");
+  };
+
+  return (
+    <div className="incident-detail-block incident-notes">
+      <h4>Notes &amp; pièces jointes</h4>
+
+      {/* Comments */}
+      <form className="incident-notes-form" onSubmit={handleSubmit}>
+        <textarea
+          className="incident-notes-input"
+          placeholder="Ajouter une note..."
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          rows={3}
+        />
+        <button type="submit" className="incident-notes-submit" disabled={!draft.trim()}>
+          Enregistrer
+        </button>
+      </form>
+
+      {comments.length > 0 && (
+        <div className="incident-note-list">
+          {comments.map((c) => (
+            <div key={c.id} className="incident-note-item">
+              <div className="incident-note-text">{c.text}</div>
+              <div className="incident-note-meta">
+                <span>{new Date(c.ts).toLocaleString("fr-FR")}</span>
+                <button
+                  type="button"
+                  className="incident-note-delete"
+                  onClick={() => deleteComment(c.id)}
+                  title="Supprimer"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Attachments */}
+      <div className="incident-attachments">
+        <button
+          type="button"
+          className="incident-attach-btn"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          + Joindre un fichier
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          style={{ display: "none" }}
+          onChange={(e) => { addAttachment(e.target.files[0]); e.target.value = ""; }}
+        />
+        {attachments.length > 0 && (
+          <div className="incident-attachment-list">
+            {attachments.map((a) => (
+              <div key={a.id} className="incident-attachment-item">
+                <button
+                  type="button"
+                  className="incident-attachment-name"
+                  onClick={() => downloadAttachment(a)}
+                  title="Télécharger"
+                >
+                  {a.name}
+                </button>
+                <span className="incident-attachment-size">
+                  {(a.size / 1024).toFixed(1)} Ko
+                </span>
+                <button
+                  type="button"
+                  className="incident-note-delete"
+                  onClick={() => deleteAttachment(a.id)}
+                  title="Supprimer"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -297,12 +430,6 @@ export default function IncidentDetailPanel({ incident, linkedAlerts, onStatusCh
         <SourceBadge source={incident.source} />
       </div>
 
-      {/* Status toggle */}
-      <StatusToggle
-        status={currentStatus}
-        onChange={(next) => onStatusChange?.(incident.id, next)}
-      />
-
       <p className="incident-detail-description" style={{ marginTop: 14 }}>
         {formatRenderableValue(incident.description || "-")}
       </p>
@@ -416,6 +543,12 @@ export default function IncidentDetailPanel({ incident, linkedAlerts, onStatusCh
       <DetailTagList title="Éléments d'analyse" items={evidence} emptyLabel="Aucun élément complémentaire." />
 
       <TimelineBlock timeline={timeline} />
+
+      {/* Historique des statuts */}
+      <StatusHistory incidentId={incident.id} />
+
+      {/* Notes & pièces jointes */}
+      <IncidentNotes incidentId={incident.id} />
 
       {/* Linked signals */}
       <div className="incident-detail-block">

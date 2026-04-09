@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import time
 from threading import Lock
@@ -126,11 +127,118 @@ class UnifiedIncidentsService:
             "raw_detection": detection,
         }
 
+    @staticmethod
+    def _compute_signature(incident: dict[str, Any]) -> str:
+        """Signature stable d'un incident : hash(asset + titre canonique + moteur)."""
+        asset = str(incident.get("asset_name") or incident.get("hostname") or "").strip().lower()
+        title = str(incident.get("title") or incident.get("name") or "").strip().lower()
+        # Retire le suffixe " (asset)" généré par le correlator
+        title = title.replace(f" ({asset})", "").strip()
+        engine = str(incident.get("dominant_engine") or "").strip().lower()
+        raw = f"{asset}|{title}|{engine}"
+        return hashlib.sha1(raw.encode()).hexdigest()[:20]
+
+    def _apply_lifecycle(self, incidents: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """
+        Fusionne les incidents live avec le cycle de vie persisted en SQLite :
+        - stabilise l'ID (même incident = même ID entre les redémarrages)
+        - restaure le statut (resolved, false_positive restent tels quels)
+        - préserve first_seen et cumule signals_count
+        """
+        try:
+            from storage.incident_store_repository import (
+                get_incident_lifecycle,
+                upsert_incident_lifecycle,
+            )
+        except Exception:
+            return incidents
+
+        result = []
+        for incident in incidents:
+            sig = self._compute_signature(incident)
+            incident["signature"] = sig
+
+            try:
+                persisted = get_incident_lifecycle(sig)
+            except Exception:
+                persisted = None
+
+            if persisted:
+                # Stabiliser l'ID : l'incident garde son ID d'origine
+                incident["id"] = persisted["incident_id"]
+                # Restaurer le statut persisted
+                incident["status"] = persisted.get("status") or "open"
+                # Préserver first_seen historique
+                if persisted.get("first_seen"):
+                    incident["first_seen"] = persisted["first_seen"]
+                # Cumuler les signaux
+                live_count = incident.get("signals_count") or 1
+                db_count = persisted.get("signals_count") or 1
+                incident["signals_count"] = max(live_count, db_count)
+                incident["detections_count"] = incident["signals_count"]
+
+            try:
+                upsert_incident_lifecycle(
+                    signature=sig,
+                    incident_id=incident["id"],
+                    title=incident.get("title"),
+                    asset_name=incident.get("asset_name"),
+                    dominant_engine=incident.get("dominant_engine"),
+                    incident_domain=incident.get("incident_domain"),
+                    severity=incident.get("severity"),
+                    risk_score=incident.get("risk_score"),
+                    status=incident.get("status", "open"),
+                    signals_count=incident.get("signals_count") or 1,
+                    first_seen=incident.get("first_seen"),
+                    last_seen=incident.get("last_seen"),
+                )
+            except Exception:
+                pass
+
+            result.append(incident)
+        return result
+
+    def _dedupe_incidents(self, incidents: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """
+        Fusionne les incidents ayant le même titre canonique et le même actif.
+        Conserve l'incident avec le risk_score le plus élevé, cumule les signaux.
+        """
+        seen: dict[tuple[str, str], int] = {}  # (title_key, asset_key) -> index
+        result: list[dict[str, Any]] = []
+
+        for incident in incidents:
+            title_raw = str(incident.get("title") or incident.get("name") or "").strip()
+            asset_raw = str(incident.get("asset_name") or incident.get("hostname") or "").strip()
+            # Titre canonique : on retire la partie " (asset)" en fin de titre si présente
+            title_key = title_raw.replace(f" ({asset_raw})", "").strip().lower()
+            asset_key = asset_raw.lower()
+            key = (title_key, asset_key)
+
+            if key in seen:
+                existing = result[seen[key]]
+                # Garder le risk_score maximal
+                if (incident.get("risk_score") or 0) > (existing.get("risk_score") or 0):
+                    result[seen[key]] = incident
+                else:
+                    # Cumuler le nombre de signaux dans l'incident conservé
+                    existing["signals_count"] = (
+                        (existing.get("signals_count") or 1)
+                        + (incident.get("signals_count") or 1)
+                    )
+                    existing["detections_count"] = existing["signals_count"]
+            else:
+                seen[key] = len(result)
+                result.append(incident)
+
+        return result
+
     def _compute_incidents(self, fetch_limit: int) -> list[dict[str, Any]]:
         detections = self.aggregator.list_detections(limit=fetch_limit)
         incidents = self.correlator.correlate(detections)
         if not incidents and detections and self.enable_detections_fallback:
             incidents = [self._detection_to_incident(item) for item in detections]
+        incidents = self._dedupe_incidents(incidents)
+        incidents = self._apply_lifecycle(incidents)
         return incidents
 
     def list_incidents(self, limit: int = 50) -> list[dict[str, Any]]:

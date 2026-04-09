@@ -2,8 +2,6 @@
 # ENV / SECRETS
 #################################
 .env
-.env.wazuh
-.env.local
 .env.*
 
 # autoriser les fichiers d'exemple
@@ -92,3 +90,8 @@ runtime/
 #################################
 deploy/docker/core/suricata/etc/*.config
 deploy/docker/core/suricata/etc/*.yaml
+runtime/db/
+
+# Suricata rulesets (fichiers externes, ne pas versionner)
+deploy/docker/core/suricata/rules/*.rules
+deploy/docker/core/suricata/rules/*.config

@@ -20,6 +20,7 @@ Variables .env :
 """
 from __future__ import annotations
 
+import hmac
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -91,8 +92,10 @@ def login(body: dict[str, str]) -> dict[str, str]:
     username = body.get("username", "").strip()
     password = body.get("password", "").strip()
 
-    # Vérification simple (à remplacer par DB utilisateurs en prod)
-    if username != AUTH_USERNAME or password != AUTH_PASSWORD:
+    # Comparaison en temps constant pour prévenir les attaques par timing
+    username_ok = hmac.compare_digest(username, AUTH_USERNAME)
+    password_ok = hmac.compare_digest(password, AUTH_PASSWORD)
+    if not username_ok or not password_ok:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Identifiants incorrects",
