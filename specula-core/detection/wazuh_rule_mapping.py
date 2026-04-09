@@ -83,10 +83,16 @@ WAZUH_RULE_MAPPINGS = [
         "tags": ["malware", "ioc", "yara"],
     },
     {
-        "rule_ids": {"VULN"},
-        "category": "vulnerabilities",
+        # IDs Wazuh vulnerability-detector : 23501 (info) → 23506 (critical)
+        # + marqueur catégorie pour le matcher
+        "rule_ids": {
+            "23501", "23502", "23503", "23504", "23505", "23506",
+            "23507", "23508", "23509", "23510",
+            "VULNERABILITY",
+        },
+        "category": "vulnerability",
         "name": "Vulnérabilité détectée",
-        "summary": "Une vulnérabilité exploitable ou un composant vulnérable a été identifié",
+        "summary": "Une vulnérabilité exploitable ou un composant vulnérable a été identifié sur cet actif",
         "severity": "high",
         "recommended_actions": VULN_REMEDIATE,
         "tags": ["vulnerability", "cve", "exposure"],

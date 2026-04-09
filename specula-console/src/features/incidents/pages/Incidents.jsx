@@ -6,6 +6,7 @@ import MetricCards from "../../../shared/ui/MetricCards";
 import "./Incidents.css";
 
 import { DEFAULT_INCIDENT_FILTERS } from "../lib/incidentConstants";
+import { loadLocalStatuses, saveStatusTransition } from "../hooks/useIncidentStore";
 import {
   getPriorityLabel,
   normalizeAlertItem,
@@ -33,8 +34,16 @@ export default function IncidentsPage() {
   const [filters, setFilters] = useState({ ...DEFAULT_INCIDENT_FILTERS });
   const [localStatuses, setLocalStatuses] = useState({});
 
+  // Chargement initial des statuts depuis l'API
+  useEffect(() => {
+    loadLocalStatuses().then((statuses) => setLocalStatuses(statuses));
+  }, []);
+
   const handleStatusChange = (id, newStatus) => {
+    const current = incidentsWithStatus.find((i) => i.id === id);
+    const oldStatus = current?.status ?? "open";
     setLocalStatuses((prev) => ({ ...prev, [id]: newStatus }));
+    saveStatusTransition(id, oldStatus, newStatus); // persiste statut + historique
   };
 
   const incidentsData = useMemo(() => {
@@ -193,6 +202,7 @@ export default function IncidentsPage() {
                     incident={incident}
                     isSelected={selectedIncident?.id === incident.id}
                     onSelect={setSelectedIncident}
+                    onStatusChange={handleStatusChange}
                   />
                 ))}
               </div>

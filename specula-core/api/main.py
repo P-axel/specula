@@ -20,7 +20,9 @@ from api.detections import router as detections_router
 from api.events import router as events_router
 from api.incidents import router as incidents_router
 from api.soc import router as soc_router
+from api.store import router as store_router
 from specula_logging.logger import get_logger
+from storage.database import init_db
 
 logger = get_logger(__name__)
 
@@ -40,7 +42,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
-        # CSP permissive en dev, à durcir en prod
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'none'; frame-ancestors 'none'"
+        )
         if os.getenv("SPECULA_ENV", "dev") == "prod":
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         return response
@@ -115,7 +119,7 @@ app.add_middleware(
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
 # Prometheus metrics
@@ -135,6 +139,13 @@ app.include_router(detections_router)
 app.include_router(incidents_router)
 app.include_router(soc_router)
 app.include_router(dashboard_router)
+app.include_router(store_router)
+
+
+@app.on_event("startup")
+def on_startup() -> None:
+    init_db()
+    logger.info("SQLite initialisé — annotations d'incidents prêtes.")
 
 
 # ─── Health ────────────────────────────────────────────────────────────────────

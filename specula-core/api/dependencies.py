@@ -61,7 +61,7 @@ detections_aggregator = DetectionsAggregator(
     providers=plugin_registry.get_detection_providers()
 )
 
-unified_correlator = UnifiedCorrelator(window_minutes=30)
+unified_correlator = UnifiedCorrelator(window_minutes=120)
 
 unified_incidents_service = UnifiedIncidentsService(
     aggregator=detections_aggregator,

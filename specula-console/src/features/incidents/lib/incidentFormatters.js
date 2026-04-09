@@ -18,6 +18,21 @@ export function formatDateTime(value) {
   return date.toLocaleString("fr-FR");
 }
 
+export function formatRelativeAge(value) {
+  if (!value) return null;
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) return null;
+  const diff = Date.now() - date.getTime();
+  if (diff < 0) return "à venir";
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "à l'instant";
+  if (minutes < 60) return `${minutes}min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  return days === 1 ? "1 jour" : `${days} jours`;
+}
+
 export function formatRenderableValue(value) {
   if (value === null || value === undefined || value === "") return "-";
 

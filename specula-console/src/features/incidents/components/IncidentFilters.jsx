@@ -72,8 +72,9 @@ export default function IncidentFilters({ filters, setFilters, onReset }) {
         >
           <option value="all">Tous</option>
           <option value="open">Ouvert</option>
-          <option value="investigating">En investigation</option>
+          <option value="investigating">En cours</option>
           <option value="resolved">Résolu</option>
+          <option value="false_positive">Faux positif</option>
         </select>
       </div>
 

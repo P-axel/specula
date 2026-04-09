@@ -8,16 +8,16 @@
   color-scheme: dark;
 
   /* Palette */
-  --c-bg:           #020c12;
-  --c-bg-panel:     #030f18;
-  --c-bg-panel-2:   #041320;
-  --c-bg-hover:     #071c28;
-  --c-border:       #0c2d3d;
-  --c-border-bright:#0e4055;
+  --c-bg:           #020e16;
+  --c-bg-panel:     #061a26;
+  --c-bg-panel-2:   #082030;
+  --c-bg-hover:     #0d2a3e;
+  --c-border:       #183f58;
+  --c-border-bright:#24607e;
 
   --c-cyan:         #00e5ff;
   --c-cyan-glow:    rgba(0, 229, 255, 0.35);
-  --c-cyan-dim:     #006880;
+  --c-cyan-dim:     #1a8faa;
   --c-teal:         #00ffcc;
   --c-teal-glow:    rgba(0, 255, 204, 0.25);
   --c-green:        #39ff14;
@@ -28,10 +28,10 @@
   --c-red:          #ff2244;
   --c-red-glow:     rgba(255, 34, 68, 0.35);
 
-  --c-text:         #b8d8e8;
-  --c-text-bright:  #e0f4ff;
-  --c-text-dim:     #3d6070;
-  --c-text-muted:   #1a3a4a;
+  --c-text:         #cce4f4;
+  --c-text-bright:  #eef8ff;
+  --c-text-dim:     #6899b4;
+  --c-text-muted:   #355d78;
 
   /* Typography */
   font-family: 'Inter', system-ui, sans-serif;

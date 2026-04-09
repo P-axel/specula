@@ -62,6 +62,14 @@ class DetectionsAggregator:
         except Exception:
             return default
 
+    def _safe_float(self, value: Any, default: float = 0.0) -> float:
+        try:
+            if value in (None, ""):
+                return default
+            return float(value)
+        except Exception:
+            return default
+
     def _sort_key(self, item: dict[str, Any]) -> datetime:
         raw_value = (
             item.get("timestamp")
@@ -276,7 +284,26 @@ class DetectionsAggregator:
             normalized["source_engine"] = normalized.get("source_engine") or source_engine
             normalized["engine"] = normalized.get("engine") or source_engine
             normalized["source"] = normalized.get("source") or source_engine
-            normalized["risk_score"] = self._safe_int(normalized.get("risk_score"), 0)
+
+            # Wazuh nested: risk_score peut être sous risk.score
+            risk_obj = normalized.get("risk")
+            nested_risk_score = risk_obj.get("score") if isinstance(risk_obj, dict) else None
+            nested_confidence = risk_obj.get("confidence") if isinstance(risk_obj, dict) else None
+            normalized["risk_score"] = self._safe_int(
+                normalized.get("risk_score") or nested_risk_score, 0
+            )
+            if not normalized.get("confidence") and nested_confidence is not None:
+                normalized["confidence"] = self._safe_float(nested_confidence, 0.0)
+
+            # Wazuh nested: hostname peut être sous host.hostname
+            host_obj = normalized.get("host")
+            if isinstance(host_obj, dict):
+                host_name = host_obj.get("hostname") or host_obj.get("id")
+                if host_name and not normalized.get("hostname"):
+                    normalized["hostname"] = host_name
+                if host_name and not normalized.get("asset_name"):
+                    normalized["asset_name"] = host_name
+
             normalized.setdefault("status", "open")
 
             return normalized
@@ -313,10 +340,20 @@ class DetectionsAggregator:
         if not isinstance(raw_alert, dict):
             raw_alert = {}
 
+        # Wazuh-style: host and rule objects at top level
+        host = item.get("host")
+        if not isinstance(host, dict):
+            host = {}
+
+        rule_obj = item.get("rule")
+        if not isinstance(rule_obj, dict):
+            rule_obj = {}
+
         title = (
             event.get("signature")
             or raw_alert.get("signature")
             or event.get("title")
+            or rule_obj.get("name")
             or event.get("category")
             or event.get("type")
             or "event"
@@ -335,7 +372,8 @@ class DetectionsAggregator:
         ).strip().lower()
 
         category = str(
-            event.get("category")
+            rule_obj.get("category")
+            or event.get("category")
             or event.get("type")
             or "unknown"
         ).strip().lower()
@@ -344,28 +382,34 @@ class DetectionsAggregator:
             token in category for token in ["network", "dns", "tls", "http", "flow", "scan"]
         ) else "generic"
 
+        # For Wazuh host events, IPs are absent — fall back to agent hostname
+        host_name = host.get("hostname") or host.get("id")
+        asset_name = destination.get("ip") or source.get("ip") or host_name or "unknown"
+        hostname = destination.get("ip") or source.get("ip") or host_name
+
         return {
             "id": event.get("id") or item.get("id"),
             "timestamp": item.get("timestamp"),
             "created_at": item.get("timestamp"),
             "title": title,
             "name": title,
-            "message": title, # Fix 500
+            "message": title,
             "category": category,
             "severity": severity,
             "priority": severity,
             "risk_score": self._safe_int(item.get("risk_score") or risk.get("score"), 0),
+            "confidence": self._safe_float(risk.get("confidence"), 0.0),
             "source": source_engine,
             "source_engine": source_engine,
             "engine": source_engine,
-            "asset_name": destination.get("ip") or source.get("ip") or "unknown",
-            "hostname": destination.get("ip") or source.get("ip"),
+            "asset_name": asset_name,
+            "hostname": hostname,
             "src_ip": source.get("ip"),
             "src_port": source.get("port"),
             "dest_ip": destination.get("ip"),
             "dest_port": destination.get("port"),
             "protocol": network.get("transport") or network.get("protocol"),
-            "rule_id": event.get("id"),
+            "rule_id": rule_obj.get("id") or event.get("id"),
             "description": title,
             "summary": title,
             "theme": theme,

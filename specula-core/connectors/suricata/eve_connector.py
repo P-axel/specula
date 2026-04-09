@@ -95,8 +95,8 @@ class SuricataEveConnector:
                     continue
 
                 try:
-                    payload = json.loads(line)
-                except json.JSONDecodeError:
+                    payload = json.loads(line.decode("utf-8", errors="replace") if isinstance(line, bytes) else line)
+                except (json.JSONDecodeError, ValueError, UnicodeDecodeError):
                     continue
 
                 if not isinstance(payload, dict):

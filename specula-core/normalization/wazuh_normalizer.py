@@ -102,12 +102,28 @@ class WazuhNormalizer:
 
         confidence = 0.75
 
+        # Extraction des données de vulnérabilité si présentes
+        vuln_data = self._as_dict(data.get("vulnerability"))
+        vuln_pkg = self._as_dict(vuln_data.get("package")) if vuln_data else {}
+        cve_id = self._normalize_str(vuln_data.get("cve")) if vuln_data else None
+        vuln_severity = self._normalize_str(vuln_data.get("severity")) if vuln_data else None
+        vuln_title = self._normalize_str(vuln_data.get("title")) if vuln_data else None
+        vuln_rationale = self._normalize_str(vuln_data.get("rationale")) if vuln_data else None
+        pkg_name = self._normalize_str(vuln_pkg.get("name")) if vuln_pkg else None
+        pkg_version = self._normalize_str(vuln_pkg.get("version")) if vuln_pkg else None
+        pkg_fixed = self._normalize_str(vuln_pkg.get("condition")) if vuln_pkg else None
+
+        category = self._map_wazuh_category(groups)
+
+        # Le titre CVE est plus précis que le titre générique de la règle
+        effective_title = vuln_title or title
+
         normalized = {
             "timestamp": timestamp,
             "event": {
                 "id": self._build_alert_event_id(raw_event),
                 "kind": "alert",
-                "category": self._map_wazuh_category(groups),
+                "category": category,
                 "type": "security_event",
                 "dataset": self.DATASET,
                 "module": "wazuh",
@@ -130,17 +146,26 @@ class WazuhNormalizer:
             "destination": {"ip": dest_ip},
             "rule": {
                 "id": self._normalize_str(rule.get("id")),
-                "name": title,
-                "category": self._map_wazuh_category(groups),
+                "name": effective_title,
+                "category": category,
                 "severity": severity_label,
             },
             "detection": {
                 "engine": "wazuh",
-                "title": title,
+                "title": effective_title,
                 "rule_id": self._normalize_str(rule.get("id")),
                 "severity": level,
                 "severity_label": severity_label,
             },
+            "vulnerability": {
+                "cve": cve_id,
+                "severity": vuln_severity,
+                "package_name": pkg_name,
+                "package_version": pkg_version,
+                "fixed_version": pkg_fixed,
+                "rationale": vuln_rationale,
+                "references": vuln_data.get("references") if vuln_data else None,
+            } if cve_id else None,
             "risk": {
                 "score": self._map_risk_score_from_wazuh(level),
                 "level": severity_label,
@@ -203,10 +228,18 @@ class WazuhNormalizer:
         return "info"
 
     def _map_wazuh_category(self, groups: List[str]) -> str:
-        if "authentication_failed" in groups:
+        if "vulnerability-detector" in groups or "vulnerability_detector" in groups:
+            return "vulnerability"
+        if "authentication_failed" in groups or "authentication_success" in groups:
             return "identity_activity"
-        if "malware" in groups:
+        if "malware" in groups or "virus" in groups:
             return "malware"
+        if "syscheck" in groups or "fim" in groups:
+            return "file_integrity"
+        if "rootcheck" in groups or "rootkit" in groups:
+            return "host_anomaly"
+        if "syscollector" in groups:
+            return "system_activity"
         return "system_activity"
 
     def _map_risk_score_from_wazuh(self, value: Any) -> Optional[int]:
