@@ -1,7 +1,7 @@
 COMPOSE  = docker compose -f deploy/docker/core/docker-compose.yml
 ENV_FILE = .env
 
-.PHONY: up down reset rebuild logs logs-core logs-suricata logs-wazuh ps open check wazuh-certs agent-install agent-status help
+.PHONY: up down reset rebuild logs logs-core logs-suricata logs-wazuh ps open check wazuh-certs agent-install agent-status versions-check versions-update help
 
 # ─── Aide ──────────────────────────────────────────────────────
 help:
@@ -25,6 +25,10 @@ help:
 	@echo "  Agents Wazuh"
 	@echo "    make agent-install   Installe un agent natif sur cette machine (sudo)"
 	@echo "    make agent-status    Vérifie la connexion de l'agent au manager"
+	@echo ""
+	@echo "  Mises à jour"
+	@echo "    make versions-check  Affiche les versions en cours vs. latest"
+	@echo "    make versions-update Applique les dernières versions stables dans .env"
 	@echo ""
 	@echo "  Accès"
 	@echo "    Console   : http://localhost:5173"
@@ -298,11 +302,63 @@ logs-wazuh:
 ps:
 	@$(COMPOSE) --env-file $(ENV_FILE) --profile wazuh ps
 
+# ─── Versions (lues depuis .env si disponible) ─────────────────────
+-include .env
+WAZUH_VERSION   ?= 4.14.4
+SURICATA_VERSION ?= latest
+
+# ─── Vérification des versions disponibles ─────────────────────────
+versions-check:
+	@echo ""
+	@echo "  Specula — Versions en cours"
+	@echo "  ══════════════════════════════════════════"
+	@echo ""
+	@echo "  Wazuh :"
+	@printf "    En cours   : $(WAZUH_VERSION)\n"
+	@LATEST=$$(curl -s https://api.github.com/repos/wazuh/wazuh/releases/latest \
+		| grep '"tag_name"' | cut -d'"' -f4 | sed 's/^v//'); \
+	if [ "$$LATEST" = "$(WAZUH_VERSION)" ]; then \
+		printf "    Latest     : $$LATEST  [OK]\n"; \
+	else \
+		printf "    Latest     : $$LATEST  [MISE A JOUR DISPONIBLE]\n"; \
+		printf "    → make versions-update pour mettre à jour\n"; \
+	fi
+	@echo ""
+	@echo "  Agent natif installé :"
+	@if command -v /var/ossec/bin/wazuh-agentd >/dev/null 2>&1; then \
+		/var/ossec/bin/wazuh-agentd --version 2>&1 | grep "Wazuh" | head -1 | sed 's/^/    /'; \
+	elif dpkg -s wazuh-agent >/dev/null 2>&1; then \
+		dpkg -s wazuh-agent | grep Version | sed 's/^/    /'; \
+	else \
+		echo "    Non installé sur l'hôte"; \
+	fi
+	@echo ""
+
+# ─── Mise à jour automatique de la version dans .env ───────────────
+versions-update:
+	@echo "[specula] Récupération de la dernière version Wazuh..."
+	@LATEST=$$(curl -s https://api.github.com/repos/wazuh/wazuh/releases/latest \
+		| grep '"tag_name"' | cut -d'"' -f4 | sed 's/^v//'); \
+	if [ -z "$$LATEST" ]; then \
+		echo "[specula] ERREUR : impossible de contacter l'API GitHub"; exit 1; \
+	fi; \
+	CURRENT=$$(grep '^WAZUH_VERSION=' .env 2>/dev/null | cut -d= -f2 || echo "$(WAZUH_VERSION)"); \
+	if [ "$$LATEST" = "$$CURRENT" ]; then \
+		echo "[specula] Wazuh déjà à jour : $$CURRENT"; \
+	else \
+		echo "[specula] Mise à jour Wazuh : $$CURRENT → $$LATEST"; \
+		if grep -q '^WAZUH_VERSION=' .env 2>/dev/null; then \
+			sed -i "s/^WAZUH_VERSION=.*/WAZUH_VERSION=$$LATEST/" .env; \
+		else \
+			echo "WAZUH_VERSION=$$LATEST" >> .env; \
+		fi; \
+		echo "[specula] .env mis à jour. Lance 'make rebuild' pour appliquer."; \
+	fi
+
 # ─── Agent Wazuh natif sur la machine hôte ─────────────────────────
 # Installe le paquet wazuh-agent sur le système hôte (pas dans Docker)
 # et le connecte au wazuh-manager exposé sur localhost:1514/1515.
-# Nécessite sudo. Version synchronisée avec le manager (4.7.2).
-WAZUH_VERSION ?= 4.7.2
+# Nécessite sudo. Version lue depuis .env (WAZUH_VERSION).
 WAZUH_AGENT_NAME ?= $(shell hostname)
 
 agent-install:

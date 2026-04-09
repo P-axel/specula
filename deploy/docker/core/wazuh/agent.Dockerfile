@@ -5,7 +5,7 @@
 
 FROM debian:12-slim
 
-ARG WAZUH_VERSION=4.7.2
+ARG WAZUH_VERSION=4.14.4
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \

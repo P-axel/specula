@@ -80,7 +80,7 @@ services:
 
   wazuh-indexer:
     profiles: [wazuh]
-    image: wazuh/wazuh-indexer:4.7.2
+    image: wazuh/wazuh-indexer:${WAZUH_VERSION:-4.14.4}
     container_name: wazuh-indexer
     hostname: wazuh-indexer
     restart: unless-stopped
@@ -110,7 +110,7 @@ services:
 
   wazuh-manager:
     profiles: [wazuh]
-    image: wazuh/wazuh-manager:4.7.2
+    image: wazuh/wazuh-manager:${WAZUH_VERSION:-4.14.4}
     container_name: wazuh-manager
     hostname: wazuh-manager
     restart: unless-stopped
@@ -148,6 +148,8 @@ services:
     build:
       context: ./wazuh
       dockerfile: agent.Dockerfile
+      args:
+        WAZUH_VERSION: ${WAZUH_VERSION:-4.14.4}
     container_name: wazuh-agent-host
     hostname: ${HOSTNAME:-specula-host}
     restart: unless-stopped
@@ -156,6 +158,7 @@ services:
       WAZUH_MANAGER: wazuh-manager
       WAZUH_AGENT_NAME: ${HOSTNAME:-specula-host}
     volumes:
+      - wazuh-agent-keys:/var/ossec/etc
       - /var/log:/host/var/log:ro
       - /etc:/host/etc:ro
       - /proc:/host/proc:ro
@@ -170,6 +173,7 @@ networks:
     name: specula-net
 
 volumes:
+  wazuh-agent-keys:
   wazuh-indexer-data:
   wazuh-manager-etc:
   wazuh-manager-logs:
