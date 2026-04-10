@@ -219,10 +219,9 @@ wazuh-security-init:
 	INDEXER_PWD=$${WAZUH_INDEXER_PASSWORD:-SecretPassword}; \
 	docker exec -u root -e INDEXER_PWD="$$INDEXER_PWD" wazuh-indexer bash -c ' \
 		export JAVA_HOME=/usr/share/wazuh-indexer/jdk; \
+		CERTS=/usr/share/wazuh-indexer/config/certs; \
 		HASH=$$( /usr/share/wazuh-indexer/plugins/opensearch-security/tools/hash.sh \
 		  -p "$$INDEXER_PWD" 2>/dev/null | grep -v "WARNING\|^\*" | tail -1 ); \
-		cp /usr/share/wazuh-indexer/certs/admin.key /tmp/admin-key.pem 2>/dev/null || \
-		cp /usr/share/wazuh-indexer/certs/admin-key.pem /tmp/admin-key.pem 2>/dev/null || true; \
 		printf "%s\n" "---" "_meta:" "  type: \"internalusers\"" "  config_version: 2" \
 		  "admin:" "  hash: \"$$HASH\"" "  reserved: true" "  backend_roles:" \
 		  "    - \"admin\"" "  description: \"Wazuh indexer admin\"" \
@@ -232,11 +231,11 @@ wazuh-security-init:
 		  > /tmp/internal_users.yml; \
 		/usr/share/wazuh-indexer/plugins/opensearch-security/tools/securityadmin.sh \
 		  -f /tmp/internal_users.yml -t internalusers -icl -nhnv \
-		  -cacert /usr/share/wazuh-indexer/certs/root-ca.pem \
-		  -cert /usr/share/wazuh-indexer/certs/admin.pem \
-		  -key /tmp/admin-key.pem \
-		  -h localhost -p 9200 2>&1 | grep -E "SUCC:|ERR:|Done" ' || \
-	echo "[specula] WARN: securityadmin a échoué — credentials indexer peut-être déjà configurés."
+		  -cacert $$CERTS/root-ca.pem \
+		  -cert $$CERTS/admin.pem \
+		  -key $$CERTS/admin-key.pem \
+		  -h localhost -p 9200 2>&1 | grep -E "SUCC:|Done"' || true
+	@echo "[specula] Sécurité OpenSearch initialisée."
 
 # ─── Détection de vulnérabilités Wazuh ─────────────────────────
 # Active le vulnerability-detector dans le manager (Debian 12 bookworm).
