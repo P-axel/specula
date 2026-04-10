@@ -5,6 +5,7 @@ import { SocDataProvider } from "../shared/providers/SocDataProvider";
 import DashboardPage from "../features/dashboard/pages/DashboardPage";
 import AssetsPage from "../features/assets/pages/AssetsPage";
 import Incidents from "../features/incidents/pages/Incidents";
+import IncidentInvestigation from "../features/incidents/pages/IncidentInvestigation";
 
 export const router = createBrowserRouter([
   {
@@ -26,6 +27,10 @@ export const router = createBrowserRouter([
       {
         path: "incidents",
         element: <Incidents />,
+      },
+      {
+        path: "incidents/:id",
+        element: <IncidentInvestigation />,
       },
     ],
   },
