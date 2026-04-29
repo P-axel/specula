@@ -31,8 +31,16 @@ def list_detections(
         results = results[offset: offset + limit]
 
         for det in results:
-            if isinstance(det, dict) and not det.get("message"):
+            if not isinstance(det, dict):
+                continue
+            if not det.get("message"):
                 det["message"] = det.get("title") or det.get("name") or "No description"
+            # Normalise engine/source en string (peut être None ou dict)
+            engine = det.get("engine") or det.get("source_engine") or det.get("source")
+            if not isinstance(engine, str):
+                engine = None
+            det["engine"] = engine
+            det["source"] = engine or ""
         return results
 
     except Exception as e:

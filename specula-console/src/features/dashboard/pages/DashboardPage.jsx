@@ -182,27 +182,20 @@ export default function DashboardPage() {
       (i) => (i.engines || []).includes("wazuh") || i.engine === "wazuh"
     ).length;
 
-    const assetsTotal = overview?.assets?.total || 0;
-    const assetsActive = overview?.assets?.active || 0;
+    // Actifs : source directe (assetsRaw) plus fiable que overview.assets
+    const assetsTotal = assetsRaw.length || overview?.assets?.total || 0;
+    const assetsActive = overview?.assets?.active || assetsRaw.filter(a =>
+      String(a?.status || "").toLowerCase() === "active"
+    ).length;
+    const assetsWarning = overview?.assets?.warning || 0;
+    const assetsCritical = overview?.assets?.critical || 0;
 
     const activeCoverage = assetsTotal
       ? Math.round((assetsActive / assetsTotal) * 100)
       : 0;
 
-    const socDetections = overview?.soc?.detections_total || 0;
-    const socEvents = overview?.soc?.events_total || 0;
-
-    const networkDetections = overview?.network?.detections_total || 0;
-    const networkSignals = overview?.network?.alerts_total || 0;
-    const networkCorrelations = overview?.network?.incidents_total || 0;
-
-    const incidentConversionRate = socDetections
-      ? Math.round((incidentsCount / socDetections) * 100)
-      : 0;
-
-    const networkCorrelationRate = networkDetections
-      ? Math.round((networkCorrelations / networkDetections) * 100)
-      : 0;
+    // Détections : source directe (détections cachées) plus fiable que overview
+    const socDetections = detections.length || overview?.soc?.detections_total || 0;
 
     return {
       incidentsCount,
@@ -215,13 +208,12 @@ export default function DashboardPage() {
       oldestCriticalAge,
       suricataCount,
       wazuhCount,
+      assetsTotal,
+      assetsActive,
+      assetsWarning,
+      assetsCritical,
       activeCoverage,
       socDetections,
-      socEvents,
-      networkDetections,
-      networkSignals,
-      networkCorrelations,
-      incidentConversionRate,
       networkCorrelationRate,
     };
   }, [incidentsRaw, alertsRaw, overview]);
@@ -232,7 +224,8 @@ export default function DashboardPage() {
       acc[engineKey] = { count: 0, lastSeen: null };
     }
     for (const d of detections) {
-      const engine = String(d.engine || d.source || "").toLowerCase();
+      const raw = d.engine || d.source_engine || d.source;
+      const engine = (typeof raw === "string" ? raw : "").toLowerCase();
       if (engine in acc) {
         acc[engine].count++;
         const ts = d.timestamp || d.created_at;
@@ -437,25 +430,25 @@ export default function DashboardPage() {
                   <OverviewCard
                     tone="info"
                     label="Actifs surveillés"
-                    value={overview?.assets?.total || 0}
+                    value={localStats.assetsTotal}
                     hint="Nombre total de postes et actifs remontés dans la plateforme."
                   />
                   <OverviewCard
                     tone="info"
                     label="Actifs actifs"
-                    value={overview?.assets?.active || 0}
+                    value={localStats.assetsActive}
                     hint="Actifs actuellement vus et remontant de la télémétrie."
                   />
                   <OverviewCard
                     tone="warning"
                     label="Actifs en vigilance"
-                    value={overview?.assets?.warning || 0}
+                    value={localStats.assetsWarning}
                     hint="Actifs présentant un état à surveiller."
                   />
                   <OverviewCard
                     tone="danger"
                     label="Actifs critiques"
-                    value={overview?.assets?.critical || 0}
+                    value={localStats.assetsCritical}
                     hint="Actifs les plus sensibles ou dégradés."
                   />
                 </div>
@@ -489,70 +482,13 @@ export default function DashboardPage() {
                     tone="info"
                     label="Détections observées"
                     value={localStats.socDetections}
-                    hint="Signaux observés servant à produire des incidents utiles."
+                    hint="Signaux Suricata + Wazuh qualifiés par le pipeline."
                   />
                 </div>
               </section>
             </div>
           </PageSection>
 
-          <PageSection title="Lecture réseau">
-            <div className="dashboard-layout-two-columns">
-              <section className="dashboard-panel">
-                <div className="dashboard-panel__header">
-                  <h3 className="dashboard-panel__title">État du réseau</h3>
-                </div>
-
-                <div className="dashboard-overview-grid">
-                  <OverviewCard
-                    tone="info"
-                    label="Activité réseau détectée"
-                    value={localStats.networkDetections}
-                    hint="Volume d’événements réseau détectés sur la période."
-                  />
-                  <OverviewCard
-                    tone="warning"
-                    label="Corrélations réseau"
-                    value={localStats.networkCorrelations}
-                    hint="Situations réseau corrélées par le pipeline dédié."
-                  />
-                  <OverviewCard
-                    tone="info"
-                    label="Signalements réseau"
-                    value={localStats.networkSignals}
-                    hint="Éléments qualifiés par le pipeline réseau."
-                  />
-                </div>
-              </section>
-
-              <section className="dashboard-panel">
-                <div className="dashboard-panel__header">
-                  <h3 className="dashboard-panel__title">Lecture globale</h3>
-                </div>
-
-                <div className="dashboard-overview-grid">
-                  <OverviewCard
-                    tone="info"
-                    label="Événements collectés"
-                    value={localStats.socEvents}
-                    hint="Base de visibilité opérationnelle remontée dans Specula."
-                  />
-                  <OverviewCard
-                    tone="info"
-                    label="Détections analysées"
-                    value={localStats.socDetections}
-                    hint="Matière première utilisée pour qualifier et corréler."
-                  />
-                  <OverviewCard
-                    tone="warning"
-                    label="Incidents produits"
-                    value={localStats.incidentsCount}
-                    hint="Résultat final exploitable par l’analyste."
-                  />
-                </div>
-              </section>
-            </div>
-          </PageSection>
 
           <div className="dashboard-layout-two-columns">
             <PageSection title="Actifs les plus exposés">
