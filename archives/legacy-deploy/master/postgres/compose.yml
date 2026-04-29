@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: specula-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: specula
+      POSTGRES_USER: specula
+      POSTGRES_PASSWORD: specula
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+volumes:
+  postgres-data:

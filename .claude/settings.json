@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install:*)",
+      "Bash(python3)",
+      "Bash(chmod 755 runtime/wazuh/certs)",
+      "Bash(docker cp:*)"
+    ],
+    "additionalDirectories": [
+      "/tmp"
+    ]
+  }
+}
