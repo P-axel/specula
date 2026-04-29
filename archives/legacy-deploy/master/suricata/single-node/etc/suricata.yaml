@@ -1,0 +1,27 @@
+%YAML 1.1
+---
+
+vars:
+  address-groups:
+    HOME_NET: "[192.168.0.0/16,10.0.0.0/8,172.16.0.0/12]"
+    EXTERNAL_NET: "any"
+
+default-log-dir: /var/log/suricata/
+
+outputs:
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: eve.json
+      types:
+        - alert
+        - dns
+        - http
+        - tls
+        - flow
+
+af-packet:
+  - interface: enx00e04c394310
+
+rule-files:
+  - /var/lib/suricata/rules/custom.rules
