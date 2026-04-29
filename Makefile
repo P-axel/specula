@@ -22,9 +22,10 @@ help:
 	@echo "    make logs-suricata   IDS réseau uniquement"
 	@echo "    make logs-wazuh      Stack Wazuh uniquement"
 	@echo ""
-	@echo "  Agents Wazuh"
-	@echo "    make agent-install   Installe un agent natif sur cette machine (sudo)"
-	@echo "    make agent-status    Vérifie la connexion de l'agent au manager"
+	@echo "  Agents Specula"
+	@echo "    make agent-specula              Installe l'agent sur cette machine"
+	@echo "    make agent-specula HOST=<ip>    Installe l'agent sur une machine distante (SSH)"
+	@echo "    make agent-status               Vérifie les agents connectés"
 	@echo ""
 	@echo "  Mises à jour"
 	@echo "    make versions-check  Affiche les versions en cours vs. latest"
@@ -455,6 +456,51 @@ agent-status:
 	@echo "[specula] Agents connectés au manager :"
 	@docker exec wazuh-manager /var/ossec/bin/agent_control -l 2>/dev/null \
 		|| echo "  Le manager Wazuh n'est pas démarré (make up -> option 2)"
+	@echo ""
+
+# ─── Agent Specula — local ou distant ──────────────────────────
+# Usage :
+#   make agent-specula              # installe sur cette machine
+#   make agent-specula HOST=<ip>    # installe sur une machine distante (SSH)
+HOST ?=
+SPECULA_IP ?= $(shell ip route get 8.8.8.8 2>/dev/null | grep -oP 'src \K\S+' | head -1)
+
+agent-specula:
+	@echo ""
+	@echo "  ╔═══════════════════════════════════════╗"
+	@echo "  ║     Specula — Agent de surveillance   ║"
+	@echo "  ╚═══════════════════════════════════════╝"
+	@echo ""
+	@if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^wazuh-manager$$'; then \
+		echo "[specula] ERREUR : Specula n'est pas démarré."; \
+		echo "          Lance d'abord : make up (option 2 ou 3)"; \
+		exit 1; \
+	fi; \
+	set -a; . ./$(ENV_FILE); set +a; \
+	AGENT_VERSION=$${WAZUH_VERSION:-$(WAZUH_VERSION)}; \
+	SPECULA_MANAGER=$(SPECULA_IP); \
+	SCRIPT="set -e; \
+		curl -sS https://packages.wazuh.com/key/GPG-KEY-WAZUH \
+			| gpg --batch --yes --dearmor -o /usr/share/keyrings/wazuh.gpg; \
+		echo 'deb [signed-by=/usr/share/keyrings/wazuh.gpg arch=amd64] https://packages.wazuh.com/4.x/apt/ stable main' \
+			| tee /etc/apt/sources.list.d/wazuh.list > /dev/null; \
+		apt-get update -qq; \
+		WAZUH_MANAGER=$$SPECULA_MANAGER WAZUH_AGENT_NAME=\$$(hostname) \
+			apt-get install -y wazuh-agent=$$AGENT_VERSION-1; \
+		systemctl daemon-reload; \
+		systemctl enable --now wazuh-agent; \
+		echo '[specula] Agent démarré — connexion à '$$SPECULA_MANAGER"; \
+	if [ -n "$(HOST)" ]; then \
+		echo "[specula] Installation sur $(HOST) (SSH)..."; \
+		ssh -t $(HOST) "sudo sh -c '$$SCRIPT'"; \
+	else \
+		echo "[specula] Installation locale ($$SPECULA_MANAGER)..."; \
+		sudo sh -c "$$SCRIPT"; \
+	fi
+	@echo ""
+	@echo "  Agents connectés :"
+	@docker exec wazuh-manager /var/ossec/bin/agent_control -l 2>/dev/null \
+		| grep -v "^$$" | grep -v "agentless" | sed 's/^/    /'
 	@echo ""
 
 # ─── Certificats Wazuh ─────────────────────────────────────────
