@@ -2,7 +2,6 @@ import logging
 from typing import Any, List, Optional
 
 from fastapi import APIRouter, Query
-from pydantic import BaseModel, Field
 
 from api.dependencies import detections_service
 
@@ -10,22 +9,12 @@ router = APIRouter(tags=["detections"])
 logger = logging.getLogger(__name__)
 
 
-class Detection(BaseModel):
-    id: str
-    source: str
-    message: Optional[str] = Field(None)
-    timestamp: str
-
-    class Config:
-        extra = "allow"
-
-
-@router.get("/detections", response_model=List[Detection])
+@router.get("/detections")
 def list_detections(
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     source: Optional[str] = Query(None),
-) -> List[Any]:
+) -> list:
     try:
         results = detections_service.list_detections(source=source)
         results = results[offset: offset + limit]
