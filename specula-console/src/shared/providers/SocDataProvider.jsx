@@ -24,7 +24,7 @@ import InitialLoadingScreen from "../ui/InitialLoadingScreen";
 
 const SocDataContext = createContext(null);
 
-const CACHE_KEY = "specula_soc_cache_v3";
+const CACHE_KEY = "specula_soc_cache_v4";
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
 let memoryCache = null;
@@ -186,33 +186,41 @@ export function SocDataProvider({ children }) {
 
   const loadSocData = useCallback(
     async ({ silent = false, force = false } = {}) => {
-      if ((hasLoadedRef.current || isFetchingRef.current) && !force) {
-        return;
-      }
+      if ((hasLoadedRef.current || isFetchingRef.current) && !force) return;
 
       isFetchingRef.current = true;
-
-      if (silent || initialized) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
-
+      if (silent || initialized) setRefreshing(true);
+      else setLoading(true);
       setError("");
 
       try {
-        const [
-          socIncidentsResponse,
-          alertsResponse,
-          assetsResponse,
-          overviewResponse,
-          severityResponse,
-          activityResponse,
-          topAssetsResponse,
-          topCategoriesResponse,
-          detectionsResponse,
-        ] = await Promise.all([
+        // ── Phase 1 : données critiques (incidents + détections) ──────
+        // On débloque l'UI dès que ces deux-là répondent.
+        const [incRes, detRes] = await Promise.allSettled([
           getSocIncidents(100),
+          getDetections(),
+        ]);
+
+        const nextIncidents = incRes.status === "fulfilled"
+          ? extractIncidentsCollection(incRes.value) : [];
+        const nextDetections = detRes.status === "fulfilled"
+          ? (Array.isArray(detRes.value) ? detRes.value : extractCollection(detRes.value))
+          : [];
+
+        applyAllData({
+          incidentsRaw: nextIncidents.length ? nextIncidents : nextDetections,
+          alertsRaw:     [],
+          assetsRaw:     [],
+          overview:      null,
+          severity:      null,
+          activity:      [],
+          topAssets:     [],
+          topCategories: [],
+          detections:    nextDetections,
+        });
+
+        // ── Phase 2 : données secondaires en arrière-plan ────────────
+        Promise.allSettled([
           getAlerts(),
           getAssets(),
           getDashboardOverview(),
@@ -220,37 +228,27 @@ export function SocDataProvider({ children }) {
           getDashboardActivity(),
           getTopAssets(),
           getTopCategories(),
-          getDetections(),
-        ]);
-
-        const nextIncidents = extractIncidentsCollection(socIncidentsResponse);
-        const nextAlerts = extractCollection(alertsResponse);
-        const nextAssets = extractCollection(assetsResponse);
-        const nextDetections = Array.isArray(detectionsResponse)
-          ? detectionsResponse
-          : extractCollection(detectionsResponse);
-
-        applyAllData({
-          incidentsRaw: nextIncidents.length ? nextIncidents : nextDetections,
-          alertsRaw: nextAlerts,
-          assetsRaw: nextAssets,
-          overview: overviewResponse ?? null,
-          severity: severityResponse ?? null,
-          activity: Array.isArray(activityResponse)
-            ? activityResponse
-            : extractCollection(activityResponse),
-          topAssets: Array.isArray(topAssetsResponse)
-            ? topAssetsResponse
-            : extractCollection(topAssetsResponse),
-          topCategories: Array.isArray(topCategoriesResponse)
-            ? topCategoriesResponse
-            : extractCollection(topCategoriesResponse),
-          detections: nextDetections,
+        ]).then(([alertsR, assetsR, overviewR, sevR, actR, taR, tcR]) => {
+          const get = (r, fb = []) => r.status === "fulfilled" ? r.value : fb;
+          applyAllData({
+            incidentsRaw:  nextIncidents.length ? nextIncidents : nextDetections,
+            alertsRaw:     extractCollection(get(alertsR)),
+            assetsRaw:     extractCollection(get(assetsR)),
+            overview:      get(overviewR, null),
+            severity:      get(sevR, null),
+            activity:      Array.isArray(get(actR)) ? get(actR) : extractCollection(get(actR)),
+            topAssets:     Array.isArray(get(taR))  ? get(taR)  : extractCollection(get(taR)),
+            topCategories: Array.isArray(get(tcR))  ? get(tcR)  : extractCollection(get(tcR)),
+            detections:    nextDetections,
+          });
         });
+
       } catch (err) {
-        // eslint-disable-next-line no-console
         console.error("loadSocData error", err);
         setError(err?.message || "Impossible de charger les données SOC.");
+        // Débloque quand même l'UI — mieux vaut afficher vide que spinner infini
+        setInitialized(true);
+        hasLoadedRef.current = true;
       } finally {
         isFetchingRef.current = false;
         setLoading(false);

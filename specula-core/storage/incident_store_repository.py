@@ -244,3 +244,21 @@ def get_incident_id_by_signature(signature: str) -> str | None:
             (signature,),
         ).fetchone()
     return row["incident_id"] if row else None
+
+
+def get_incident_by_id(incident_id: str) -> dict[str, Any] | None:
+    import json
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM incidents WHERE incident_id = ?",
+            (incident_id,),
+        ).fetchone()
+    if not row:
+        return None
+    data = dict(row)
+    if data.get("raw_json"):
+        try:
+            data.update(json.loads(data["raw_json"]))
+        except Exception:
+            pass
+    return data

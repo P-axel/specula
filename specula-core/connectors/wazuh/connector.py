@@ -39,6 +39,8 @@ class WazuhConnector:
             verify_ssl=verify_ssl,
             timeout=timeout,
             auth_type=auth_type,
+            max_retries=1,       # 1 retry max — Wazuh indispo = retour rapide
+            retry_delay_seconds=1,
         )
         self.alerts = WazuhAlertsConnector(self.client)
         self.agents = WazuhAgentsConnector(self.client)

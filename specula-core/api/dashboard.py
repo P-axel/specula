@@ -42,11 +42,27 @@ def _to_dict_list(items: list[Any]) -> list[dict]:
     return [_to_dict_item(item) for item in items]
 
 
+def _dashboard_assets_dicts() -> list[dict]:
+    try:
+        return _to_dict_list(assets_service.list_assets())
+    except Exception as exc:
+        logger.warning("Wazuh indisponible, assets ignorés: %s", exc)
+        return []
+
+
+def _dashboard_alerts_dicts() -> list[dict]:
+    try:
+        return _to_dict_list(alerts_service.list_alerts())
+    except Exception as exc:
+        logger.warning("Wazuh indisponible, alerts ignorées: %s", exc)
+        return []
+
+
 def _dashboard_detection_dicts() -> list[dict]:
     try:
         return _to_dict_list(detections_service.list_detections())
     except Exception as exc:
-        logger.exception("Erreur récupération détections dashboard: %s", exc)
+        logger.warning("Erreur récupération détections dashboard: %s", exc)
         return []
 
 
@@ -54,17 +70,25 @@ def _dashboard_incident_dicts() -> list[dict]:
     try:
         return _to_dict_list(unified_incidents_service.list_incidents(limit=500))
     except Exception as exc:
-        logger.exception("Erreur récupération incidents dashboard: %s", exc)
+        logger.warning("Erreur récupération incidents dashboard: %s", exc)
+        return []
+
+
+def _dashboard_events_dicts() -> list[dict]:
+    try:
+        return _to_dict_list(unified_events_service.list_event_dicts(limit=500))
+    except Exception as exc:
+        logger.warning("Erreur récupération events dashboard: %s", exc)
         return []
 
 
 @router.get("/dashboard/overview")
 def dashboard_overview() -> dict:
-    assets = _to_dict_list(assets_service.list_assets())
-    alerts = _to_dict_list(alerts_service.list_alerts())
+    assets     = _dashboard_assets_dicts()
+    alerts     = _dashboard_alerts_dicts()
     detections = _dashboard_detection_dicts()
-    incidents = _dashboard_incident_dicts()
-    events = _to_dict_list(unified_events_service.list_event_dicts(limit=500))
+    incidents  = _dashboard_incident_dicts()
+    events     = _dashboard_events_dicts()
 
     active_assets = [
         asset for asset in assets
@@ -138,8 +162,8 @@ def dashboard_overview() -> dict:
 @router.get("/dashboard/network-overview")
 def dashboard_network_overview() -> dict:
     detections = _dashboard_detection_dicts()
-    alerts = _to_dict_list(alerts_service.list_alerts())
-    incidents = _dashboard_incident_dicts()
+    alerts     = _dashboard_alerts_dicts()
+    incidents  = _dashboard_incident_dicts()
 
     return {
         "detections_total": len(detections),
@@ -209,7 +233,7 @@ def dashboard_top_categories() -> list[dict]:
 
 @router.get("/dashboard/top-platforms")
 def dashboard_top_platforms() -> list[dict]:
-    assets = _to_dict_list(assets_service.list_assets())
+    assets = _dashboard_assets_dicts()
     counter: Counter = Counter()
 
     for asset in assets:
@@ -224,7 +248,7 @@ def dashboard_top_platforms() -> list[dict]:
 
 @router.get("/dashboard/top-groups")
 def dashboard_top_groups() -> list[dict]:
-    assets = _to_dict_list(assets_service.list_assets())
+    assets = _dashboard_assets_dicts()
     counter: Counter = Counter()
 
     for asset in assets:
@@ -245,7 +269,7 @@ def dashboard_top_groups() -> list[dict]:
 
 @router.get("/dashboard/recent-assets")
 def dashboard_recent_assets() -> list[dict]:
-    assets = _to_dict_list(assets_service.list_assets())
+    assets = _dashboard_assets_dicts()
     sortable_assets: list[tuple[datetime, dict]] = []
 
     for asset in assets:
@@ -272,7 +296,7 @@ def dashboard_recent_assets() -> list[dict]:
 
 @router.get("/dashboard/watchlist-assets")
 def dashboard_watchlist_assets() -> list[dict]:
-    assets = _to_dict_list(assets_service.list_assets())
+    assets = _dashboard_assets_dicts()
 
     watchlist = [
         asset for asset in assets
@@ -311,7 +335,7 @@ def dashboard_watchlist_assets() -> list[dict]:
 
 @router.get("/dashboard/telemetry-health")
 def dashboard_telemetry_health() -> dict:
-    assets = _to_dict_list(assets_service.list_assets())
+    assets = _dashboard_assets_dicts()
 
     healthy = 0
     warning = 0
