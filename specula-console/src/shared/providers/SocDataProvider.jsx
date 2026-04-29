@@ -24,7 +24,7 @@ import InitialLoadingScreen from "../ui/InitialLoadingScreen";
 
 const SocDataContext = createContext(null);
 
-const CACHE_KEY = "specula_soc_cache_v4";
+const CACHE_KEY = "specula_soc_cache_v5";
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
 let memoryCache = null;

@@ -318,7 +318,7 @@ export default function IncidentDetailPanel({ incident, onStatusChange }) {
       </div>
 
       {/* ── Métriques ── */}
-      {(score !== null || conf !== null || incident.detections_count != null) && (
+      {(score !== null || conf !== null || incident.signals_count != null) && (
         <div className="triage-metrics">
           {score !== null && (
             <div className="triage-metric">
@@ -332,9 +332,9 @@ export default function IncidentDetailPanel({ incident, onStatusChange }) {
               <span className="triage-metric__lbl">conf.</span>
             </div>
           )}
-          {incident.detections_count != null && (
+          {incident.signals_count != null && (
             <div className="triage-metric">
-              <span className="triage-metric__val">{incident.detections_count}</span>
+              <span className="triage-metric__val">{incident.signals_count}</span>
               <span className="triage-metric__lbl">signaux</span>
             </div>
           )}

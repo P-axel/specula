@@ -115,6 +115,7 @@ export default function DashboardPage() {
   const {
     incidentsRaw,
     alertsRaw,
+    assetsRaw,
     overview,
     severity,
     activity,
@@ -214,28 +215,49 @@ export default function DashboardPage() {
       assetsCritical,
       activeCoverage,
       socDetections,
-      networkCorrelationRate,
     };
-  }, [incidentsRaw, alertsRaw, overview]);
+  }, [incidentsRaw, alertsRaw, assetsRaw, detections, overview]);
 
   const sourcesStatus = useMemo(() => {
     const acc = {};
     for (const engineKey of Object.keys(SOURCES_META)) {
       acc[engineKey] = { count: 0, lastSeen: null };
     }
-    for (const d of detections) {
-      const raw = d.engine || d.source_engine || d.source;
-      const engine = (typeof raw === "string" ? raw : "").toLowerCase();
-      if (engine in acc) {
-        acc[engine].count++;
-        const ts = d.timestamp || d.created_at;
-        if (ts && (!acc[engine].lastSeen || ts > acc[engine].lastSeen)) {
-          acc[engine].lastSeen = ts;
+
+    // Priorité aux incidents (source fiable avec engine correct)
+    for (const inc of incidentsRaw) {
+      const engines = Array.isArray(inc.engines) ? inc.engines : [];
+      const eng = inc.engine || inc.dominant_engine || inc.source;
+      const allEngines = eng ? [...engines, String(eng).toLowerCase()] : engines;
+      for (const e of allEngines) {
+        const key = String(e).toLowerCase();
+        if (key in acc) {
+          acc[key].count++;
+          const ts = inc.last_seen || inc.first_seen || inc.timestamp;
+          if (ts && (!acc[key].lastSeen || ts > acc[key].lastSeen)) {
+            acc[key].lastSeen = ts;
+          }
         }
       }
     }
+
+    // Complète avec les détections si les incidents sont vides
+    if (Object.values(acc).every(v => v.count === 0)) {
+      for (const d of detections) {
+        const raw = d.engine || d.source_engine || d.source;
+        const engine = (typeof raw === "string" ? raw : "").toLowerCase();
+        if (engine in acc) {
+          acc[engine].count++;
+          const ts = d.timestamp || d.created_at;
+          if (ts && (!acc[engine].lastSeen || ts > acc[engine].lastSeen)) {
+            acc[engine].lastSeen = ts;
+          }
+        }
+      }
+    }
+
     return Object.entries(acc).map(([key, val]) => ({ engineKey: key, ...val }));
-  }, [detections]);
+  }, [incidentsRaw, detections]);
 
   const headlineCards = useMemo(() => {
     if (!overview) return [];
@@ -348,16 +370,6 @@ export default function DashboardPage() {
               ? "Âge du plus vieil incident critique/high ouvert non traité."
               : "Aucun incident critique ouvert."}
           />
-          <StatCard
-            title="Incidents Suricata"
-            value={localStats.suricataCount}
-            hint="Incidents provenant du moteur réseau Suricata."
-          />
-          <StatCard
-            title="Incidents Wazuh"
-            value={localStats.wazuhCount}
-            hint="Incidents provenant du moteur endpoint Wazuh."
-          />
         </div>
       </PageSection>
 
@@ -439,18 +451,6 @@ export default function DashboardPage() {
                     value={localStats.assetsActive}
                     hint="Actifs actuellement vus et remontant de la télémétrie."
                   />
-                  <OverviewCard
-                    tone="warning"
-                    label="Actifs en vigilance"
-                    value={localStats.assetsWarning}
-                    hint="Actifs présentant un état à surveiller."
-                  />
-                  <OverviewCard
-                    tone="danger"
-                    label="Actifs critiques"
-                    value={localStats.assetsCritical}
-                    hint="Actifs les plus sensibles ou dégradés."
-                  />
                 </div>
               </section>
 
@@ -461,28 +461,28 @@ export default function DashboardPage() {
 
                 <div className="dashboard-overview-grid">
                   <OverviewCard
-                    tone="warning"
-                    label="Incidents ouverts"
-                    value={localStats.openIncidents}
-                    hint="Incidents qui demandent encore une analyse ou une action."
+                    tone="info"
+                    label="Suricata"
+                    value={localStats.suricataCount}
+                    hint="Incidents réseau détectés par Suricata (IDS)."
                   />
                   <OverviewCard
-                    tone="danger"
-                    label="Incidents critiques"
-                    value={localStats.criticalIncidents}
-                    hint="Incidents au plus haut niveau de priorité."
+                    tone="info"
+                    label="Wazuh"
+                    value={localStats.wazuhCount}
+                    hint="Incidents endpoint détectés par Wazuh (SIEM)."
                   />
                   <OverviewCard
                     tone="info"
                     label="Alertes SOC"
                     value={localStats.alertsCount}
-                    hint="Flux global d’alertes actuellement visible dans Specula."
+                    hint="Flux brut d’alertes avant corrélation."
                   />
                   <OverviewCard
                     tone="info"
-                    label="Détections observées"
+                    label="Détections qualifiées"
                     value={localStats.socDetections}
-                    hint="Signaux Suricata + Wazuh qualifiés par le pipeline."
+                    hint="Signaux passés par le pipeline de détection."
                   />
                 </div>
               </section>
