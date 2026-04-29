@@ -83,4 +83,44 @@ def init_db() -> None:
                 ON incident_attachments(incident_id);
             CREATE INDEX IF NOT EXISTS idx_history_incident
                 ON incident_status_history(incident_id);
+
+            CREATE TABLE IF NOT EXISTS ai_analyses (
+                incident_id  TEXT PRIMARY KEY,
+                status       TEXT NOT NULL DEFAULT 'pending',
+                analysed_at  TEXT,
+                model        TEXT,
+                duration_s   REAL,
+                error        TEXT,
+                report_json  TEXT
+            );
         """)
+        # Migration v2 — rendre analysed_at nullable + ajouter status/error
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(ai_analyses)").fetchall()]
+        if "status" not in cols or (
+            "analysed_at" in cols and
+            any(r[1] == "analysed_at" and r[3] == 1  # notnull flag
+                for r in conn.execute("PRAGMA table_info(ai_analyses)").fetchall())
+        ):
+            rows = conn.execute("SELECT * FROM ai_analyses").fetchall()
+            conn.executescript("""
+                DROP TABLE IF EXISTS ai_analyses_old;
+                ALTER TABLE ai_analyses RENAME TO ai_analyses_old;
+                CREATE TABLE ai_analyses (
+                    incident_id  TEXT PRIMARY KEY,
+                    status       TEXT NOT NULL DEFAULT 'pending',
+                    analysed_at  TEXT,
+                    model        TEXT,
+                    duration_s   REAL,
+                    error        TEXT,
+                    report_json  TEXT
+                );
+            """)
+            for r in rows:
+                d = dict(r)
+                conn.execute(
+                    "INSERT OR IGNORE INTO ai_analyses VALUES (?,?,?,?,?,?,?)",
+                    (d["incident_id"], d.get("status", "done"), d.get("analysed_at"),
+                     d.get("model"), d.get("duration_s"), d.get("error"), d.get("report_json")),
+                )
+            conn.execute("DROP TABLE IF EXISTS ai_analyses_old")
+            conn.commit()

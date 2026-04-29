@@ -159,14 +159,17 @@ up: .env
 	@echo ""
 	@echo "  [1] Réseau uniquement   — Suricata (IDS réseau)"
 	@echo "  [2] Stack complète      — Suricata + Wazuh (réseau + endpoints)"
+	@echo "  [3] Stack complète + IA — Suricata + Wazuh + Ollama (analyse IA locale)"
 	@echo ""
-	@printf "  Votre choix [1/2] : "; \
+	@printf "  Votre choix [1/2/3] : "; \
 	read CHOICE; \
 	set -a; . ./$(ENV_FILE); set +a; \
 	$(call _detect_iface); \
 	mkdir -p runtime/logs/suricata; \
 	if [ "$$CHOICE" = "2" ]; then \
 		$(MAKE) --no-print-directory _start-wazuh SURICATA_INTERFACE=$$SURICATA_INTERFACE; \
+	elif [ "$$CHOICE" = "3" ]; then \
+		$(MAKE) --no-print-directory _start-ai SURICATA_INTERFACE=$$SURICATA_INTERFACE; \
 	else \
 		$(MAKE) --no-print-directory _start-base SURICATA_INTERFACE=$$SURICATA_INTERFACE; \
 	fi
@@ -207,6 +210,22 @@ _start-wazuh: wazuh-certs
 	@echo "  Console       : http://localhost:5173"
 	@echo "  API           : http://localhost:8000/docs"
 	@echo "  Wazuh Manager : https://localhost:55000"
+	@echo "  ════════════════════════════════════"
+	@echo ""
+
+# ─── Démarrage stack complète + IA ────────────────────────────
+_start-ai: _start-wazuh
+	@set -a; . ./$(ENV_FILE); set +a; \
+	sed -i 's/SPECULA_ENABLE_AI=false/SPECULA_ENABLE_AI=true/' $(ENV_FILE) 2>/dev/null || true; \
+	SURICATA_INTERFACE=${SURICATA_INTERFACE} $(COMPOSE) --env-file $(ENV_FILE) --profile wazuh --profile ai up -d --remove-orphans
+	@echo "[specula] Téléchargement du modèle Ollama (première fois : ~5GB)..."
+	@set -a; . ./$(ENV_FILE); set +a; \
+	docker exec specula-ollama ollama pull $${OLLAMA_MODEL:-llama3.1:8b} 2>&1 | tail -3 || true
+	@echo ""
+	@echo "  ════════════════════════════════════"
+	@echo "  Console       : http://localhost:5173"
+	@echo "  API           : http://localhost:8000/docs"
+	@echo "  Ollama        : http://localhost:11434"
 	@echo "  ════════════════════════════════════"
 	@echo ""
 
@@ -257,7 +276,13 @@ wazuh-enable-vuln:
 		echo "[specula] ossec.conf mis à jour"; \
 		grep -A3 "<vulnerability-detector>" "$$conf" | head -4'
 	@docker restart wazuh-manager > /dev/null
-	@echo "[specula] Manager redémarré — premier scan de vulnérabilités dans ~5 min"
+	@printf "[specula] Manager redémarré, attente du démarrage des services..."; \
+	for i in $$(seq 1 20); do \
+		docker exec wazuh-manager /var/ossec/bin/wazuh-control status 2>/dev/null | grep -q "wazuh-apid is running" && break; \
+		printf "."; sleep 2; \
+	done; echo ""
+	@docker exec wazuh-manager /var/ossec/bin/wazuh-control start > /dev/null 2>&1 || true
+	@echo "[specula] Wazuh opérationnel — premier scan de vulnérabilités dans ~5 min"
 
 # ─── Reconstruction ────────────────────────────────────────────
 rebuild: .env

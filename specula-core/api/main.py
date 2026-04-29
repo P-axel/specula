@@ -21,6 +21,7 @@ from api.events import router as events_router
 from api.incidents import router as incidents_router
 from api.soc import router as soc_router
 from api.store import router as store_router
+from api.ai import router as ai_router
 from specula_logging.logger import get_logger
 from storage.database import init_db
 
@@ -140,12 +141,53 @@ app.include_router(incidents_router)
 app.include_router(soc_router)
 app.include_router(dashboard_router)
 app.include_router(store_router)
+app.include_router(ai_router)
 
 
 @app.on_event("startup")
 def on_startup() -> None:
     init_db()
+    from storage.ai_analysis_repository import reset_stuck
+    n = reset_stuck()
+    if n:
+        logger.warning("IA: %d analyse(s) bloquée(s) remises en erreur (redémarrage).", n)
     logger.info("SQLite initialisé — annotations d'incidents prêtes.")
+    # Préchauffage du cache en arrière-plan (pas de blocage au démarrage)
+    import threading
+    threading.Thread(target=_warm_cache, daemon=True).start()
+
+
+def _warm_cache() -> None:
+    import time, concurrent.futures
+    time.sleep(1)
+    from api.dependencies import (
+        assets_service, alerts_service,
+        detections_service, unified_incidents_service,
+    )
+    # Séquentiel : detections en premier (incidents en dépend via le pipeline)
+    # puis assets/alerts en parallèle (indépendants)
+    for name, fn in [
+        ("detections", lambda: detections_service.list_detections()),
+        ("incidents",  lambda: unified_incidents_service.list_incidents()),
+    ]:
+        try:
+            fn()
+            logger.info("Cache préchauffé : %s", name)
+        except Exception as e:
+            logger.warning("Préchauffage '%s' ignoré : %s", name, e)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        futures = {
+            pool.submit(assets_service.list_assets): "assets",
+            pool.submit(alerts_service.list_alerts): "alerts",
+        }
+        for fut in concurrent.futures.as_completed(futures):
+            name = futures[fut]
+            try:
+                fut.result()
+                logger.info("Cache préchauffé : %s", name)
+            except Exception as e:
+                logger.warning("Préchauffage '%s' ignoré : %s", name, e)
 
 
 # ─── Health ────────────────────────────────────────────────────────────────────

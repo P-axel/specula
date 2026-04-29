@@ -2,10 +2,12 @@
  * IncidentDetailPanel — vue triage (panneau latéral)
  *
  * Répond en < 5s à : "est-ce que je dois m'en occuper ?"
- * N'affiche PAS ce que la liste montre déjà (badges, description, signaux).
+ * Widget IA compact : menace + sévérité réelle + action immédiate #1.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
 const SEV_COLORS = {
   critical: "#ff2244",
@@ -21,6 +23,8 @@ const STATUS_OPTIONS = [
   { value: "resolved",       label: "Résolu",       color: "#39ff14" },
   { value: "false_positive", label: "Faux positif", color: "#6899b4" },
 ];
+
+const FP_COLOR = { low: "#39ff14", medium: "#ffaa00", high: "#ff2244" };
 
 function cleanTitle(title, asset) {
   if (!title) return "Incident";
@@ -93,6 +97,165 @@ function StatusDropdown({ value, onChange }) {
   );
 }
 
+/* ── Widget IA compact ────────────────────────────────────────── */
+function AiWidget({ incidentId }) {
+  const [data,    setData]    = useState(null);   // {status, report, error, ...}
+  const [starting, setStarting] = useState(false);
+  const pollRef = useRef(null);
+  const prevId  = useRef(null);
+
+  const stopPoll = () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
+
+  const fetchStatus = useCallback(async (id) => {
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/incidents/${id}/analyse`);
+      if (!r.ok) return;
+      const d = await r.json();
+      setData(d);
+      if (d.status === "done" || d.status === "error" || d.status === "none") stopPoll();
+    } catch { stopPoll(); }
+  }, []);
+
+  // Charge le statut existant à chaque changement d'incident
+  useEffect(() => {
+    if (!incidentId || incidentId === prevId.current) return;
+    prevId.current = incidentId;
+    stopPoll();
+    setData(null);
+    setStarting(false);
+    fetchStatus(incidentId);
+  }, [incidentId, fetchStatus]);
+
+  // Si running, démarre le polling
+  useEffect(() => {
+    if (data?.status === "running" || data?.status === "pending") {
+      if (!pollRef.current) {
+        pollRef.current = setInterval(() => fetchStatus(incidentId), 3000);
+      }
+    }
+    return () => {};
+  }, [data?.status, incidentId, fetchStatus]);
+
+  useEffect(() => stopPoll, []); // cleanup au unmount
+
+  const analyse = useCallback(async () => {
+    setStarting(true);
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/incidents/${incidentId}/analyse`, { method: "POST" });
+      const d = await r.json();
+      if (r.status === 503) { setData({ status: "error", error: "Ollama non actif — lance avec l'option [3]." }); return; }
+      setData(d);
+      if (d.status === "running" || d.status === "pending") {
+        pollRef.current = setInterval(() => fetchStatus(incidentId), 3000);
+      }
+    } catch { setData({ status: "error", error: "Backend inaccessible." }); }
+    finally { setStarting(false); }
+  }, [incidentId, fetchStatus]);
+
+  const status    = data?.status ?? "none";
+  const report    = data?.report ?? null;
+  const isRunning = status === "running" || status === "pending";
+  const isDone    = status === "done";
+  const isError   = status === "error";
+
+  const a = report?.analyst     ?? {};
+  const r = report?.remediation ?? {};
+  const c = report?.correlator  ?? {};
+  const topAction = r.immediate_actions?.[0];
+  const aiScore   = r.risk_score ?? null;
+
+  return (
+    <div className="triage-ai">
+      <div className="triage-ai__header">
+        <span className="triage-ai__label">Analyse IA</span>
+        <button
+          type="button"
+          className={`triage-ai__btn${(isRunning || starting) ? " triage-ai__btn--loading" : ""}`}
+          onClick={analyse}
+          disabled={isRunning || starting}
+        >
+          {starting ? "Lancement…" : isRunning ? "En cours…" : isDone ? "Relancer" : "Analyser"}
+        </button>
+      </div>
+
+      {isRunning && (
+        <div className="triage-ai__progress">
+          <span className="triage-ai__spinner" />
+          Agents en cours d'analyse — résultat automatique…
+        </div>
+      )}
+
+      {isError && (
+        <p className="triage-ai__error">{data?.error ?? "Erreur lors de l'analyse."}</p>
+      )}
+
+      {status === "none" && !starting && (
+        <p className="triage-ai__hint">IA locale — menace, sévérité réelle, remédiation.</p>
+      )}
+
+      {isDone && report && (
+        <div className="triage-ai__result">
+          {/* Ligne 1 : menace + sévérité réelle + score */}
+          <div className="triage-ai__row">
+            {a.threat_type && (
+              <span className="triage-ai__chip">{a.threat_type.replace(/_/g, " ")}</span>
+            )}
+            {a.real_severity && (
+              <span
+                className="triage-ai__chip triage-ai__chip--sev"
+                style={{ color: SEV_COLORS[a.real_severity] ?? "#cce4f4" }}
+              >
+                {a.real_severity}
+              </span>
+            )}
+            {a.confidence !== undefined && (
+              <span className="triage-ai__chip triage-ai__chip--dim">
+                {Math.round(a.confidence * 100)}%
+              </span>
+            )}
+            {aiScore !== null && (
+              <span className="triage-ai__score">{aiScore}<span>/100</span></span>
+            )}
+          </div>
+
+          {/* Faux positif + campagne */}
+          <div className="triage-ai__row triage-ai__row--meta">
+            {a.false_positive_risk && (
+              <span style={{ color: FP_COLOR[a.false_positive_risk] ?? "#6899b4" }}
+                    className="triage-ai__chip triage-ai__chip--dim">
+                FP {a.false_positive_risk}
+              </span>
+            )}
+            {c.is_campaign && (
+              <span className="triage-ai__chip triage-ai__chip--alert">campagne</span>
+            )}
+            {r.escalate_to_management && (
+              <span className="triage-ai__chip triage-ai__chip--alert">escalade</span>
+            )}
+          </div>
+
+          {/* Action immédiate #1 */}
+          {topAction && (
+            <div className="triage-ai__action">
+              <span className="triage-ai__action-label">Action immédiate</span>
+              <span className="triage-ai__action-text">{topAction.action}</span>
+              {topAction.rationale && (
+                <span className="triage-ai__action-why">{topAction.rationale}</span>
+              )}
+            </div>
+          )}
+
+          {/* Objectif attaquant */}
+          {a.attacker_objective && (
+            <p className="triage-ai__objective">{a.attacker_objective}</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Composant principal ──────────────────────────────────────── */
 export default function IncidentDetailPanel({ incident, onStatusChange }) {
   const navigate = useNavigate();
 
@@ -126,10 +289,9 @@ export default function IncidentDetailPanel({ incident, onStatusChange }) {
       className="incident-detail-panel triage-panel"
       style={{ "--sev-color": sevColor }}
     >
-      {/* Barre top sévérité via ::before CSS */}
       <div className="triage-sev-bar" />
 
-      {/* ── Header : titre + score ── */}
+      {/* ── Header ── */}
       <div className="triage-header">
         <div className="triage-header__left">
           <div className="triage-header__kicker">Détail incident</div>
@@ -150,12 +312,12 @@ export default function IncidentDetailPanel({ incident, onStatusChange }) {
         </div>
       </div>
 
-      {/* ── Statut — dropdown ── */}
+      {/* ── Statut ── */}
       <div className="triage-status-bar">
         <StatusDropdown value={currentStatus} onChange={handleStatusChange} />
       </div>
 
-      {/* ── Métriques : score + confiance + détections ── */}
+      {/* ── Métriques ── */}
       {(score !== null || conf !== null || incident.detections_count != null) && (
         <div className="triage-metrics">
           {score !== null && (
@@ -179,7 +341,7 @@ export default function IncidentDetailPanel({ incident, onStatusChange }) {
         </div>
       )}
 
-      {/* ── Flux réseau condensé ── */}
+      {/* ── Flux réseau ── */}
       {isNetwork && (incident.src_ip || incident.dest_ip) && (
         <div className="triage-flow">
           <code className="triage-flow__ip">{incident.src_ip || "?"}</code>
@@ -194,12 +356,15 @@ export default function IncidentDetailPanel({ incident, onStatusChange }) {
         </div>
       )}
 
-      {/* ── Alerte threat intel ── */}
+      {/* ── Threat intel ── */}
       {ti?.is_known_bad && (
         <div className="triage-ti-alert">
           IoC connu — score {ti.reputation_score}/100
         </div>
       )}
+
+      {/* ── Widget IA ── */}
+      <AiWidget incidentId={incident.id} />
 
       {/* ── CTA investigation ── */}
       <button
@@ -207,8 +372,7 @@ export default function IncidentDetailPanel({ incident, onStatusChange }) {
         className="triage-investigate-btn"
         onClick={() => navigate(`/incidents/${incident.id}`, { state: { incident } })}
       >
-        Ouvrir l'investigation
-        <span className="triage-investigate-btn__arrow">→</span>
+        Rapport complet →
       </button>
     </div>
   );

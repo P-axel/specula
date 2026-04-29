@@ -22,6 +22,11 @@ services:
       - ./suricata/etc:/etc/suricata
       - ./suricata/rules:/var/lib/suricata/rules
       - ../../../runtime/logs/suricata:/var/log/suricata
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 384M
 
   specula-backend:
     build:
@@ -52,6 +57,11 @@ services:
       timeout: 5s
       retries: 15
       start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 512M
 
   specula-console:
     build:
@@ -72,10 +82,14 @@ services:
     restart: unless-stopped
     networks:
       - specula-net
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 384M
 
   # ═══════════════════════════════════════════════════════════════
   # Stack Wazuh (--profile wazuh)
-  # Démarre avec : ./start-specula.sh --wazuh
   # ═══════════════════════════════════════════════════════════════
 
   wazuh-indexer:
@@ -89,6 +103,7 @@ services:
     environment:
       OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
       bootstrap.memory_lock: "true"
+      INDEXER_PASSWORD: ${WAZUH_INDEXER_PASSWORD:-SecretPassword}
     ulimits:
       memlock:
         soft: -1
@@ -107,6 +122,11 @@ services:
       - ./wazuh/internal_users.yml:/usr/share/wazuh-indexer/opensearch-security/internal_users.yml:ro
     networks:
       - specula-net
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1536M
 
   wazuh-manager:
     profiles: [wazuh]
@@ -141,8 +161,12 @@ services:
       - wazuh-indexer
     networks:
       - specula-net
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
 
-  # Agent Wazuh pour la machine hôte — surveille les logs et processus du host
   wazuh-agent:
     profiles: [wazuh]
     build:
@@ -166,6 +190,36 @@ services:
       - wazuh-manager
     networks:
       - specula-net
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  # ═══════════════════════════════════════════════════════════════
+  # Module IA (--profile ai) — analyse locale via Ollama
+  # CPU plafonné : laisse toujours 30% au système hôte
+  # ═══════════════════════════════════════════════════════════════
+  specula-ollama:
+    profiles: [ai]
+    image: ollama/ollama:latest
+    container_name: specula-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    environment:
+      OLLAMA_KEEP_ALIVE: "24h"
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+    networks:
+      - specula-net
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 6G
 
 networks:
   specula-net:
@@ -185,3 +239,4 @@ volumes:
   wazuh-manager-wodles:
   filebeat-etc:
   filebeat-var:
+  ollama-models:

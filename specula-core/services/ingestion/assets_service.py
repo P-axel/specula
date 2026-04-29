@@ -18,7 +18,7 @@ class AssetsService:
         self.repository = repository or AssetRepository()
 
         if settings.specula_enable_wazuh and settings.wazuh_base_url:
-            client = WazuhClient()
+            client = WazuhClient(max_retries=1, retry_delay_seconds=1)
             self.connector = WazuhAgentsConnector(client)
         else:
             logger.info("AssetsService initialisé sans connecteur Wazuh")
