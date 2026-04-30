@@ -12,6 +12,8 @@ export const DEFAULT_INCIDENT_FILTERS = {
   search: "",
   kind: "all",
   severity: "all",
-  status: "all",
+  status: "active",   // "active" = open + investigating par défaut
   age: "all",
 };
+
+export const ACTIVE_STATUSES = ["open", "investigating"];

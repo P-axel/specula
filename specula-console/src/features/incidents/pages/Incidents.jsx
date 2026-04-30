@@ -74,13 +74,6 @@ export default function IncidentsPage() {
     }).length;
   }, [incidentsData]);
 
-  const vulnerabilityCount = useMemo(() => {
-    return incidentsWithStatus.filter(
-      (incident) =>
-        incident.kind === "vulnerability" ||
-        (Array.isArray(incident.cves) && incident.cves.length > 0)
-    ).length;
-  }, [incidentsData]);
 
   const openCount = useMemo(() => {
     return incidentsWithStatus.filter((incident) => {
@@ -114,21 +107,38 @@ export default function IncidentsPage() {
 
   const cards = useMemo(
     () => [
-      {
-        label: "Incidents visibles",
-        value: incidentsWithStatus.length,
-        tone: "warning",
-      },
-      { label: "Incidents ouverts", value: openCount, tone: "info" },
+      { label: "Incidents ouverts", value: openCount, tone: "warning" },
       { label: "Haute priorité", value: highPriorityCount, tone: "danger" },
       {
-        label: "Incidents avec CVE",
-        value: vulnerabilityCount,
+        label: "Résolus / FP",
+        value: incidentsWithStatus.filter(i => ["resolved","false_positive"].includes(String(i.status||"").toLowerCase())).length,
         tone: "info",
       },
     ],
-    [incidentsData.length, openCount, highPriorityCount, vulnerabilityCount]
+    [incidentsData.length, openCount, highPriorityCount]
   );
+
+  // Répartition par catégorie (sur tous les incidents actifs)
+  const byKind = useMemo(() => {
+    const active = incidentsWithStatus.filter(i => ["open","investigating"].includes(String(i.status||"open").toLowerCase()));
+    const counts = {};
+    for (const i of active) {
+      const k = i.kind || i.incident_domain || "autre";
+      counts[k] = (counts[k] || 0) + 1;
+    }
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  }, [incidentsWithStatus]);
+
+  // Répartition par poste (sur tous les incidents actifs)
+  const byAsset = useMemo(() => {
+    const active = incidentsWithStatus.filter(i => ["open","investigating"].includes(String(i.status||"open").toLowerCase()));
+    const counts = {};
+    for (const i of active) {
+      const a = i.asset_name || i.src_ip || "inconnu";
+      counts[a] = (counts[a] || 0) + 1;
+    }
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  }, [incidentsWithStatus]);
 
   const heroBadge = useMemo(() => {
     if (!incidentsWithStatus.length) return "0 incident";
@@ -169,6 +179,65 @@ export default function IncidentsPage() {
       </div>
 
       <MetricCards items={cards} />
+
+      {/* ── Toggles vue + répartition par catégorie et par poste ── */}
+      <div className="inc-overview">
+        {/* Toggles rapides */}
+        <div className="inc-overview__toggles">
+          {[
+            { key: "active", label: "Actifs" },
+            { key: "all",    label: "Tous" },
+            { key: "closed", label: "Résolus / FP" },
+          ].map(({ key, label }) => (
+            <button
+              key={key}
+              type="button"
+              className={`inc-toggle${filters.status === key ? " inc-toggle--on" : ""}`}
+              onClick={() => setFilters(f => ({ ...f, status: key }))}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Répartition par catégorie */}
+        {byKind.length > 0 && (
+          <div className="inc-overview__group">
+            <span className="inc-overview__label">Catégorie</span>
+            <div className="inc-overview__chips">
+              {byKind.map(([kind, count]) => (
+                <button
+                  key={kind}
+                  type="button"
+                  className={`inc-chip${filters.kind === kind ? " inc-chip--on" : ""}`}
+                  onClick={() => setFilters(f => ({ ...f, kind: f.kind === kind ? "all" : kind, status: "active" }))}
+                >
+                  {kind} <span className="inc-chip__count">{count}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Répartition par poste */}
+        {byAsset.length > 0 && (
+          <div className="inc-overview__group">
+            <span className="inc-overview__label">Poste</span>
+            <div className="inc-overview__chips">
+              {byAsset.map(([asset, count]) => (
+                <button
+                  key={asset}
+                  type="button"
+                  className={`inc-chip${filters.search === asset ? " inc-chip--on" : ""}`}
+                  onClick={() => setFilters(f => ({ ...f, search: f.search === asset ? "" : asset, status: "active" }))}
+                >
+                  {asset} <span className="inc-chip__count">{count}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       <IncidentFilters
         filters={filters}

@@ -1576,3 +1576,86 @@
 @keyframes ai-spin {
   to { transform: rotate(360deg); }
 }
+
+/* ── Vue d'ensemble incidents ──────────────────────────────────── */
+.inc-overview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--c-border, #183f58);
+  border-radius: 6px;
+  background: var(--c-bg-panel, #061a26);
+}
+
+.inc-overview__toggles {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.inc-toggle {
+  padding: 5px 12px;
+  border: 1px solid var(--c-border, #183f58);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--c-text-dim, #6899b4);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.inc-toggle:hover { border-color: var(--c-border-bright, #24607e); color: var(--c-text-bright, #eef8ff); }
+.inc-toggle--on {
+  background: var(--c-border, #183f58);
+  color: var(--c-cyan, #00e5ff);
+  border-color: var(--c-cyan-dim, #1a8faa);
+}
+
+.inc-overview__group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.inc-overview__label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--c-text-muted, #355d78);
+  flex-shrink: 0;
+}
+
+.inc-overview__chips { display: flex; flex-wrap: wrap; gap: 5px; }
+
+.inc-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border: 1px solid var(--c-border, #183f58);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--c-text-dim, #6899b4);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.68rem;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.inc-chip:hover { border-color: var(--c-border-bright, #24607e); color: var(--c-text-bright, #eef8ff); }
+.inc-chip--on {
+  background: rgba(0, 229, 255, 0.06);
+  border-color: var(--c-cyan-dim, #1a8faa);
+  color: var(--c-cyan, #00e5ff);
+}
+.inc-chip__count {
+  background: var(--c-border, #183f58);
+  color: var(--c-text-muted, #355d78);
+  padding: 0 4px;
+  border-radius: 2px;
+  font-size: 0.6rem;
+}
+.inc-chip--on .inc-chip__count { background: rgba(0,229,255,0.15); color: var(--c-cyan-dim, #1a8faa); }

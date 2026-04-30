@@ -62,7 +62,13 @@ export function filterIncidents(incidents, filters) {
 
     const incidentStatus = String(incident.status || "open").toLowerCase();
     const matchesStatus =
-      filters.status === "all" || incidentStatus === filters.status;
+      filters.status === "all"
+        ? true
+        : filters.status === "active"
+          ? ["open", "investigating"].includes(incidentStatus)
+          : filters.status === "closed"
+            ? ["resolved", "false_positive"].includes(incidentStatus)
+            : incidentStatus === filters.status;
 
     const matchesAge = isWithinAge(
       incident.last_seen || incident.updated_at || incident.timestamp,
