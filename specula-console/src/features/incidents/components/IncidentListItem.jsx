@@ -90,6 +90,11 @@ export default function IncidentListItem({
           <IncidentEngineBadge key={eng} engine={eng} />
         ))}
         {hasCves ? <span className="incident-chip">CVE</span> : null}
+        {incident.fp_likely && (
+          <span className="incident-chip incident-chip--fp" title={`Score FP: ${incident.fp_score} — ${(incident.fp_reasons || []).join(", ")}`}>
+            ~ FP probable
+          </span>
+        )}
         <span
           className="incident-status-btn"
           style={{ "--status-color": current.color }}
