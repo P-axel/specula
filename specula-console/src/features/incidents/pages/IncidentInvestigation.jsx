@@ -542,7 +542,7 @@ export default function IncidentInvestigation() {
               {aiError && <p className="inv-ai-error">{aiError}</p>}
               {!aiDone && !aiRunning && !aiError && (
                 <p className="inv-ai-hint">
-                  3 agents IA analysent la menace, corrèlent les incidents liés et génèrent un plan de remédiation précis.
+                  IA locale — analyse la menace, évalue le risque réel et génère un plan de remédiation précis (~40s).
                 </p>
               )}
               {aiDone && aiReport && <AiReportView report={aiReport} />}

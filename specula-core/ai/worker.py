@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Worker IA — subprocess indépendant.
-Lit l'incident depuis stdin (JSON), exécute les 3 agents, persiste en SQLite.
+Lit l'incident depuis stdin (JSON), exécute l'analyse IA, persiste en SQLite.
 Survit au reload uvicorn.
 """
 import json
