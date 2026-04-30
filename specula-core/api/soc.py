@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from api.dependencies import detections_aggregator, unified_incidents_service
+from services.analysis.auto_triage import triage_incidents
 
 router = APIRouter(tags=["soc"])
 
@@ -8,6 +9,7 @@ router = APIRouter(tags=["soc"])
 @router.get("/incidents/soc")
 def list_soc_incidents(limit: int = 50) -> dict:
     items = unified_incidents_service.list_incidents(limit=limit)
+    items = triage_incidents(items)
 
     return {
         "theme": "soc",

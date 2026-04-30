@@ -152,9 +152,9 @@ def on_startup() -> None:
     if n:
         logger.warning("IA: %d analyse(s) bloquée(s) remises en erreur (redémarrage).", n)
     logger.info("SQLite initialisé — annotations d'incidents prêtes.")
-    # Préchauffage du cache en arrière-plan (pas de blocage au démarrage)
     import threading
     threading.Thread(target=_warm_cache, daemon=True).start()
+    threading.Thread(target=_auto_analyse_new_incidents, daemon=True).start()
 
 
 def _warm_cache() -> None:
@@ -188,6 +188,48 @@ def _warm_cache() -> None:
                 logger.info("Cache préchauffé : %s", name)
             except Exception as e:
                 logger.warning("Préchauffage '%s' ignoré : %s", name, e)
+
+
+def _auto_analyse_new_incidents() -> None:
+    """Lance l'analyse IA sur les incidents high/critical ouverts sans analyse existante."""
+    import time, subprocess, sys, json
+    time.sleep(45)  # Après le warmup cache
+    from ai.ollama_client import is_available
+    if not is_available():
+        return
+    from storage.database import get_connection
+    from storage.ai_analysis_repository import get
+    from storage.incident_store_repository import get_incident_by_id
+    try:
+        with get_connection() as conn:
+            rows = conn.execute(
+                """SELECT incident_id FROM incidents
+                   WHERE severity IN ('critical','high')
+                     AND status IN ('open','investigating')
+                   ORDER BY last_seen DESC LIMIT 10"""
+            ).fetchall()
+        for row in rows:
+            iid = row["incident_id"]
+            existing = get(iid)
+            if existing and existing.get("status") in ("done", "running", "pending"):
+                continue
+            incident = get_incident_by_id(iid)
+            if not incident:
+                continue
+            incident["id"] = iid
+            payload = json.dumps({"incident_id": iid, "incident": incident, "related": []})
+            worker = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "ai", "worker.py"))
+            proc = subprocess.Popen(
+                [sys.executable, worker],
+                stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                text=True, env={**os.environ, "OLLAMA_MODEL": "qwen2.5:1.5b", "OLLAMA_TIMEOUT": "300"},
+            )
+            proc.stdin.write(payload)
+            proc.stdin.close()
+            logger.info("IA auto-analyse lancée pour %s", iid)
+            time.sleep(5)  # Espacer pour ne pas saturer Ollama
+    except Exception as e:
+        logger.warning("Auto-analyse IA ignorée : %s", e)
 
 
 # ─── Health ────────────────────────────────────────────────────────────────────

@@ -455,6 +455,14 @@
 
 .incident-chip--kind { color: var(--c-text, #cce4f4); }
 
+.incident-chip--fp {
+  background: rgba(104, 153, 180, 0.08);
+  border-color: rgba(104, 153, 180, 0.2);
+  color: var(--c-text-dim, #6899b4);
+  font-style: italic;
+  cursor: help;
+}
+
 .incident-chip--network {
   background: rgba(0, 229, 255, 0.06);
   border-color: rgba(0, 229, 255, 0.18);

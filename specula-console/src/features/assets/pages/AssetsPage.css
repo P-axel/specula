@@ -1,157 +1,58 @@
-/* =========================
-   PAGE
-========================= */
+/* ── Page ────────────────────────────────────────────────────── */
+.asc-page { display: flex; flex-direction: column; gap: 32px; padding: 24px; }
 
-.assets-page {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
+/* ── Hero ────────────────────────────────────────────────────── */
+.asc-hero {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 24px; padding-bottom: 20px;
+  border-bottom: 1px solid var(--c-border, #183f58);
 }
-
-/* =========================
-   GRID
-========================= */
-
-.assets-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1.25rem;
+.asc-hero__eyebrow {
+  font-family: 'Share Tech Mono', monospace; font-size: 0.65rem;
+  letter-spacing: 0.15em; text-transform: uppercase;
+  color: var(--c-cyan-dim, #1a8faa); margin-bottom: 6px;
 }
+.asc-hero__title { font-family: 'Orbitron', monospace; font-size: 1.4rem; color: var(--c-text-bright, #eef8ff); margin: 0 0 6px; }
+.asc-hero__desc  { font-size: 0.8rem; color: var(--c-text-dim, #6899b4); margin: 0; }
+.asc-hero__stats { display: flex; gap: 32px; }
+.asc-hero__stat  { display: flex; flex-direction: column; align-items: flex-end; }
+.asc-hero__stat-val { font-family: 'Orbitron', monospace; font-size: 1.6rem; color: var(--c-text-bright, #eef8ff); }
+.asc-hero__stat-lbl { font-family: 'Share Tech Mono', monospace; font-size: 0.62rem; color: var(--c-text-muted, #355d78); text-transform: uppercase; }
 
-/* =========================
-   CARD
-========================= */
+/* ── Section ─────────────────────────────────────────────────── */
+.asc-section { display: flex; flex-direction: column; gap: 14px; }
+.asc-section__title { font-family: 'Share Tech Mono', monospace; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--c-cyan-dim, #1a8faa); }
+.asc-section__hint  { color: var(--c-text-muted, #355d78); font-size: 0.65rem; }
 
-.asset-card {
-  background: linear-gradient(180deg, rgba(16, 25, 44, 0.95), rgba(13, 21, 38, 0.95));
-  border: 1px solid rgba(148, 163, 184, 0.14);
-  border-radius: 1rem;
-  padding: 1.25rem;
-  transition: all 0.18s ease;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
+/* ── Grid ────────────────────────────────────────────────────── */
+.asc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+
+/* ── Card ────────────────────────────────────────────────────── */
+.asc-card {
+  position: relative; border: 1px solid var(--c-border, #183f58);
+  border-radius: 6px; background: var(--c-bg-panel, #061a26);
+  overflow: hidden; cursor: pointer;
+  transition: border-color 0.15s, transform 0.1s;
+  display: flex; flex-direction: column; gap: 10px; padding: 14px 16px;
 }
-
-.asset-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(125, 179, 255, 0.3);
-}
-
-/* =========================
-   HEADER
-========================= */
-
-.asset-card__top {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 1rem;
-}
-
-.asset-title-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.asset-title {
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: #e2e8f0;
-  margin: 0;
-}
-
-.asset-subtitle {
-  font-size: 0.85rem;
-  color: #94a3b8;
-  margin-top: 0.25rem;
-}
-
-/* =========================
-   BADGE
-========================= */
-
-.asset-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.25rem 0.55rem;
-  border-radius: 999px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  color: #cbd5f5;
-  background: rgba(59, 130, 246, 0.1);
-}
-
-/* =========================
-   STATUS
-========================= */
-
-.asset-status {
-  padding: 0.3rem 0.7rem;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: capitalize;
-}
-
-.asset-status.info {
-  background: rgba(59, 130, 246, 0.15);
-  color: #60a5fa;
-}
-
-.asset-status.medium {
-  background: rgba(251, 191, 36, 0.15);
-  color: #facc15;
-}
-
-.asset-status.low {
-  background: rgba(148, 163, 184, 0.15);
-  color: #94a3b8;
-}
-
-/* =========================
-   META GRID
-========================= */
-
-.asset-meta-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.9rem;
-}
-
-.asset-label {
-  display: block;
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  color: #64748b;
-  margin-bottom: 0.2rem;
-}
-
-.asset-meta-grid strong {
-  font-size: 0.9rem;
-  color: #e2e8f0;
-}
-
-/* =========================
-   STATES
-========================= */
-
-.error-text {
-  color: #f87171;
-}
-
-.empty-state {
-  color: #94a3b8;
-  font-style: italic;
-}
-
-/* =========================
-   RESPONSIVE
-========================= */
-
-@media (max-width: 768px) {
-  .asset-meta-grid {
-    grid-template-columns: 1fr;
-  }
-}
+.asc-card:hover { border-color: var(--c-border-bright, #24607e); transform: translateY(-1px); }
+.asc-card--active { border-color: var(--c-border-bright, #24607e); }
+.asc-card__risk-bar { position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--risk-color, var(--c-border)); opacity: 0.8; }
+.asc-card__header { display: flex; align-items: center; justify-content: space-between; }
+.asc-card__status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--c-text-muted, #355d78); margin-right: 8px; vertical-align: middle; }
+.asc-card__status-dot--on { background: #39ff14; box-shadow: 0 0 6px #39ff14; }
+.asc-card__name { font-family: 'Share Tech Mono', monospace; font-size: 0.85rem; color: var(--c-text-bright, #eef8ff); }
+.asc-card__score { text-align: right; }
+.asc-card__score-val { font-family: 'Orbitron', monospace; font-size: 1.3rem; }
+.asc-card__score-lbl { font-size: 0.6rem; color: var(--c-text-muted, #355d78); }
+.asc-card__meta { display: flex; gap: 12px; font-size: 0.7rem; color: var(--c-text-dim, #6899b4); font-family: 'Share Tech Mono', monospace; }
+.asc-card__risk-label { font-family: 'Share Tech Mono', monospace; font-size: 0.68rem; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+.asc-card__inc-badge { background: rgba(255,107,0,0.12); color: #ff6b00; border: 1px solid rgba(255,107,0,0.25); padding: 1px 6px; border-radius: 3px; font-size: 0.62rem; }
+.asc-card__incidents { display: flex; flex-direction: column; gap: 5px; }
+.asc-card__inc-row { display: flex; align-items: center; gap: 7px; font-size: 0.7rem; padding: 4px 8px; background: var(--c-bg, #020e16); border-radius: 3px; }
+.asc-card__inc-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.asc-card__inc-title { flex: 1; color: var(--c-text-dim, #6899b4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.asc-card__inc-status { font-family: 'Share Tech Mono', monospace; font-size: 0.6rem; color: var(--c-text-muted, #355d78); flex-shrink: 0; }
+.asc-card__footer { display: flex; align-items: center; justify-content: space-between; font-size: 0.65rem; color: var(--c-text-muted, #355d78); font-family: 'Share Tech Mono', monospace; margin-top: 2px; padding-top: 8px; border-top: 1px solid var(--c-border, #183f58); }
+.asc-card__cta { color: var(--c-cyan-dim, #1a8faa); }
+.asc-empty { font-size: 0.8rem; color: var(--c-text-muted, #355d78); font-family: 'Share Tech Mono', monospace; }
