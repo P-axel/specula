@@ -71,7 +71,9 @@ _raw_incidents_service = UnifiedIncidentsService(
 # ── Cache TTL partagé ─────────────────────────────────────────────
 # Tous les endpoints lisent le même cache — un seul appel Wazuh/Suricata
 # toutes les 30s quelle que soit la charge du frontend.
-_cache = TTLCache(ttl=300.0, stale_ttl=3600.0)  # fraîches 5min, utilisables 1h
+# TTL 2min : données fraîches suffisamment souvent pour un SOC opérationnel
+# Stale 4h : en cas d'indisponibilité Wazuh, l'analyste garde une base de travail
+_cache = TTLCache(ttl=120.0, stale_ttl=14400.0)
 
 
 class _CachedAssets:
