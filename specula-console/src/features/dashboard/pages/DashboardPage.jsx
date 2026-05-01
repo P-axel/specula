@@ -125,6 +125,7 @@ export default function DashboardPage() {
     refreshing,
     loading,
     dataAge,
+    dataVersion,
     refreshSocData,
     error,
   } = useSocData();
@@ -432,7 +433,7 @@ export default function DashboardPage() {
             <PageSection title="Activité récente">
               <div className="dashboard-chart-shell">
                 <ResponsiveContainer width="100%" height={280}>
-                  <LineChart data={activity}>
+                  <LineChart key={`activity-${dataVersion}`} data={activity}>
                     <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} />
                     <XAxis dataKey="time" tick={CHART_AXIS_STYLE} axisLine={{ stroke: CHART_GRID_COLOR }} tickLine={false} />
                     <YAxis tick={CHART_AXIS_STYLE} axisLine={{ stroke: CHART_GRID_COLOR }} tickLine={false} />
@@ -446,7 +447,7 @@ export default function DashboardPage() {
             <PageSection title="Répartition par sévérité">
               <div className="dashboard-chart-shell">
                 <ResponsiveContainer width="100%" height={280}>
-                  <PieChart>
+                  <PieChart key={`severity-${dataVersion}`}>
                     <Pie
                       data={severityData.filter(d => d.value > 0)}
                       dataKey="value"
@@ -535,7 +536,7 @@ export default function DashboardPage() {
             <PageSection title="Actifs les plus exposés">
               <div className="dashboard-chart-shell">
                 <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={topAssets} layout="vertical">
+                  <BarChart key={`topassets-${dataVersion}`} data={topAssets} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} horizontal={false} />
                     <XAxis type="number" tick={CHART_AXIS_STYLE} axisLine={{ stroke: CHART_GRID_COLOR }} tickLine={false} />
                     <YAxis type="category" dataKey="name" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} width={90} />
@@ -549,7 +550,7 @@ export default function DashboardPage() {
             <PageSection title="Catégories dominantes">
               <div className="dashboard-chart-shell">
                 <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={topCategories} layout="vertical">
+                  <BarChart key={`topcats-${dataVersion}`} data={topCategories} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} horizontal={false} />
                     <XAxis type="number" tick={CHART_AXIS_STYLE} axisLine={{ stroke: CHART_GRID_COLOR }} tickLine={false} />
                     <YAxis type="category" dataKey="name" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} width={110} />
