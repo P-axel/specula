@@ -235,7 +235,21 @@ export default function DashboardPage() {
       acc[engineKey] = { count: 0, lastSeen: null };
     }
 
-    // Priorité aux incidents (source fiable avec engine correct)
+    // Compte détections brutes (fraîches, source fiable)
+    for (const d of detections) {
+      const raw = d.engine || d.source_engine || d.source;
+      const engine = (typeof raw === "string" ? raw : "").toLowerCase();
+      if (engine in acc) {
+        acc[engine].count++;
+        const ts = d.timestamp || d.created_at;
+        if (ts && (!acc[engine].lastSeen || ts > acc[engine].lastSeen)) {
+          acc[engine].lastSeen = ts;
+        }
+      }
+    }
+
+    // Complète le lastSeen depuis tous les incidents (peu importe statut)
+    // et marque actif si la source a eu au moins 1 incident historique
     for (const inc of incidentsRaw) {
       const engines = Array.isArray(inc.engines) ? inc.engines : [];
       const eng = inc.engine || inc.dominant_engine || inc.source;
@@ -243,7 +257,8 @@ export default function DashboardPage() {
       for (const e of allEngines) {
         const key = String(e).toLowerCase();
         if (key in acc) {
-          acc[key].count++;
+          // Marque actif même si 0 détection récente (source connectée historiquement)
+          if (acc[key].count === 0) acc[key].count = 1;
           const ts = inc.last_seen || inc.first_seen || inc.timestamp;
           if (ts && (!acc[key].lastSeen || ts > acc[key].lastSeen)) {
             acc[key].lastSeen = ts;
@@ -252,7 +267,7 @@ export default function DashboardPage() {
       }
     }
 
-    // Complète avec les détections si les incidents sont vides
+    // Fallback si vraiment aucune donnée
     if (Object.values(acc).every(v => v.count === 0)) {
       for (const d of detections) {
         const raw = d.engine || d.source_engine || d.source;
