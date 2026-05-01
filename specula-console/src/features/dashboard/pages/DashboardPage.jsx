@@ -124,9 +124,19 @@ export default function DashboardPage() {
     detections,
     refreshing,
     loading,
+    dataAge,
     refreshSocData,
     error,
   } = useSocData();
+
+  const dataAgeLabel = useMemo(() => {
+    if (!dataAge) return null;
+    const s = Math.floor((Date.now() - dataAge) / 1000);
+    if (s < 60) return "données fraîches";
+    if (s < 300) return `mise à jour il y a ${Math.floor(s / 60)}min`;
+    if (s < 3600) return `données de il y a ${Math.floor(s / 60)}min — actualisation en cours`;
+    return `données de il y a ${Math.floor(s / 3600)}h — reconnexion requise`;
+  }, [dataAge]);
 
   const localStats = useMemo(() => {
     const normalizedIncidents = incidentsRaw.map((incident) => ({
@@ -303,10 +313,12 @@ export default function DashboardPage() {
 
   const heroBadge = useMemo(() => {
     if (loading) return "Chargement…";
-    if (isDataEmpty) return "En attente des données…";
-    if (!overview) return `${localStats.incidentsCount} incident(s) visibles`;
-    return `${overview?.assets?.active || 0}/${overview?.assets?.total || 0} actifs remontent · ${localStats.incidentsCount} incident(s) visibles`;
-  }, [loading, isDataEmpty, overview, localStats]);
+    if (isDataEmpty) return "Initialisation…";
+    const base = overview
+      ? `${overview?.assets?.active || 0}/${overview?.assets?.total || 0} actifs · ${localStats.incidentsCount} incident(s)`
+      : `${localStats.incidentsCount} incident(s)`;
+    return dataAgeLabel ? `${base} — ${dataAgeLabel}` : base;
+  }, [loading, isDataEmpty, overview, localStats, dataAgeLabel]);
 
   return (
     <div className="page dashboard-page">

@@ -140,12 +140,14 @@ function createEmptyState() {
 }
 
 export function SocDataProvider({ children }) {
+  // Charge le cache même périmé — vaut mieux des données d'hier que rien
   const initialCache =
     memoryCache && memoryCache.timestamp && isFresh(memoryCache.timestamp)
       ? memoryCache
       : readSessionCache();
 
   const boot = initialCache || createEmptyState();
+  const isStale = initialCache && !isFresh(initialCache.timestamp);
 
   const [incidentsRaw, setIncidentsRaw] = useState(boot.incidentsRaw || []);
   const [alertsRaw, setAlertsRaw] = useState(boot.alertsRaw || []);
@@ -158,7 +160,8 @@ export function SocDataProvider({ children }) {
   const [detections, setDetections] = useState(boot.detections || []);
 
   const [loading, setLoading] = useState(!initialCache);
-  const [refreshing, setRefreshing] = useState(false);
+  const [refreshing, setRefreshing] = useState(!!isStale); // stale = refresh silencieux
+  const [dataAge, setDataAge] = useState(initialCache?.timestamp || null);
   const [error, setError] = useState("");
   const [initialized, setInitialized] = useState(!!initialCache);
 
@@ -183,6 +186,7 @@ export function SocDataProvider({ children }) {
     setDetections(Array.isArray(payload.detections) ? payload.detections : []);
 
     setInitialized(true);
+    setDataAge(payload.timestamp);
     hasLoadedRef.current = true;
     memoryCache = payload;
     writeSessionCache(payload);
@@ -309,6 +313,7 @@ export function SocDataProvider({ children }) {
       detections,
       loading,
       refreshing,
+      dataAge,
       error,
       initialized,
       reloadSocData: () => loadSocData({ force: true }),
