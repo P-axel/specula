@@ -33,7 +33,9 @@ function formatRelative(ts) {
 
 function normalizeAsset(asset) {
   const name = asset.name || asset.hostname || asset.asset_id;
-  const isCore = name === "wazuh.manager" || asset.asset_type === "manager";
+  // Masque le manager Wazuh (infrastructure, pas un endpoint à surveiller)
+  const isCore = ["wazuh.manager", "wazuh-manager"].includes(name) ||
+                 asset.asset_type === "manager";
   const isHost = name === "specula.agent";
   return {
     ...asset,
@@ -106,6 +108,56 @@ function AssetCard({ asset, summary, onClick }) {
       <div className="asc-card__footer">
         <span>Dernière activité : {formatRelative(asset.last_seen)}</span>
         <span className="asc-card__cta">Voir →</span>
+      </div>
+    </article>
+  );
+}
+
+function ObservedCard({ asset, summary, onClick }) {
+  const stats   = summary?.stats ?? {};
+  const score   = summary?.risk_score ?? null;
+  const incidents = summary?.recent_incidents ?? [];
+  const open    = incidents.filter(i => ["open","investigating"].includes(i.status));
+
+  return (
+    <article className="asc-obs-card" onClick={onClick}>
+      <div className="asc-obs-card__header">
+        <div className="asc-obs-card__left">
+          <span className="asc-obs-card__ip">{asset.displayName}</span>
+          <span className="asc-obs-card__badge">Sans agent</span>
+        </div>
+        <div className="asc-obs-card__right">
+          {score !== null && score > 0 && (
+            <span className="asc-obs-card__score" style={{ color: riskColor(score) }}>
+              {score}<span>/100</span>
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="asc-obs-card__source">
+        Détecté par Suricata · IDS réseau
+      </div>
+
+      {open.length > 0 ? (
+        <div className="asc-obs-card__incidents">
+          {open.slice(0, 2).map(inc => (
+            <div key={inc.incident_id} className="asc-obs-card__inc">
+              <span className="asc-obs-card__inc-dot"
+                style={{ background: SEV_COLOR[inc.severity] || "#6899b4" }} />
+              <span>{(inc.title || "Incident").replace(/\s*\(.*\)$/, "").slice(0, 40)}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="asc-obs-card__clean">
+          {stats.total > 0 ? `${stats.total} incident(s) — tous traités` : "Aucun incident"}
+        </div>
+      )}
+
+      <div className="asc-obs-card__footer">
+        <span>{formatRelative(asset.last_seen)}</span>
+        <span className="asc-obs-card__cta">Voir →</span>
       </div>
     </article>
   );
@@ -194,10 +246,13 @@ export default function AssetsPage() {
 
       {observedIPs.length > 0 && (
         <section className="asc-section">
-          <h2 className="asc-section__title">Hôtes réseau observés <span className="asc-section__hint">(détectés par Suricata, sans agent)</span></h2>
-          <div className="asc-grid">
+          <h2 className="asc-section__title">
+            Hôtes réseau détectés
+            <span className="asc-section__hint"> — visibilité Suricata uniquement, pas d'agent</span>
+          </h2>
+          <div className="asc-grid asc-grid--observed">
             {observedIPs.map(asset => (
-              <AssetCard
+              <ObservedCard
                 key={asset.displayName}
                 asset={asset}
                 summary={summaries[asset.displayName]}
