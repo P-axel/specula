@@ -159,7 +159,7 @@ def on_startup() -> None:
 
 def _warm_cache() -> None:
     import time, concurrent.futures
-    time.sleep(30)  # Attend que le backend soit healthy avant de charger Wazuh
+    time.sleep(5)  # Minimal — stale-while-revalidate gère les rechargements
     from api.dependencies import (
         assets_service, alerts_service,
         detections_service, unified_incidents_service,
