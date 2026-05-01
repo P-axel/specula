@@ -54,7 +54,7 @@ function formatRelative(isoStr) {
 
 function SourceCard({ engineKey, count, lastSeen }) {
   const meta = SOURCES_META[engineKey] || { label: engineKey, subtitle: "" };
-  const active = count > 0;
+  const active = true; // Source active si configurée dans Specula, count = activité
   return (
     <div className={`source-card source-card--${active ? "active" : "inactive"}`}>
       <div className="source-card__header">
