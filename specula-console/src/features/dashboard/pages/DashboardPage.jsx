@@ -123,6 +123,7 @@ export default function DashboardPage() {
     topCategories,
     detections,
     refreshing,
+    loading,
     refreshSocData,
     error,
   } = useSocData();
@@ -298,10 +299,14 @@ export default function DashboardPage() {
     ];
   }, [severity]);
 
+  const isDataEmpty = !loading && incidentsRaw.length === 0 && detections.length === 0;
+
   const heroBadge = useMemo(() => {
-    if (!overview) return "Aucune donnée";
+    if (loading) return "Chargement…";
+    if (isDataEmpty) return "En attente des données…";
+    if (!overview) return `${localStats.incidentsCount} incident(s) visibles`;
     return `${overview?.assets?.active || 0}/${overview?.assets?.total || 0} actifs remontent · ${localStats.incidentsCount} incident(s) visibles`;
-  }, [overview, localStats]);
+  }, [loading, isDataEmpty, overview, localStats]);
 
   return (
     <div className="page dashboard-page">
@@ -311,6 +316,15 @@ export default function DashboardPage() {
         description="Vue claire de la couverture, de l’activité observée et des incidents réellement utiles à traiter."
         badge={heroBadge}
       />
+
+      {(loading || isDataEmpty) && (
+        <div className="dashboard-loading-bar">
+          <span className="dashboard-loading-bar__spinner" />
+          {loading
+            ? "Chargement des données SOC en cours…"
+            : "Initialisation du cache — les données arrivent dans quelques secondes…"}
+        </div>
+      )}
 
       <PageSection title="Synthèse opérationnelle">
         <div

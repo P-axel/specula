@@ -282,3 +282,27 @@
   .dashboard-overview-card__value { font-size: 1.5rem; }
   .dashboard-chart-shell { min-height: 220px; }
 }
+
+/* ── Bannière chargement dashboard ──────────────────────────── */
+.dashboard-loading-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border: 1px solid var(--c-border, #183f58);
+  border-radius: 6px;
+  background: rgba(0, 229, 255, 0.03);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--c-cyan-dim, #1a8faa);
+}
+.dashboard-loading-bar__spinner {
+  display: inline-block;
+  width: 10px; height: 10px;
+  border: 1.5px solid var(--c-border, #183f58);
+  border-top-color: var(--c-cyan, #00e5ff);
+  border-radius: 50%;
+  animation: dash-spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes dash-spin { to { transform: rotate(360deg); } }

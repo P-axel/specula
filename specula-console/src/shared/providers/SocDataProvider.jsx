@@ -207,17 +207,29 @@ export function SocDataProvider({ children }) {
           ? (Array.isArray(detRes.value) ? detRes.value : extractCollection(detRes.value))
           : [];
 
-        applyAllData({
-          incidentsRaw: nextIncidents.length ? nextIncidents : nextDetections,
-          alertsRaw:     [],
-          assetsRaw:     [],
-          overview:      null,
-          severity:      null,
-          activity:      [],
-          topAssets:     [],
-          topCategories: [],
-          detections:    nextDetections,
-        });
+        // Ne pas écraser les données existantes avec du vide (backend en warmup)
+        // Si on a déjà des données (sessionStorage/mémoire) on les garde en attendant
+        const hasNewData = nextIncidents.length > 0 || nextDetections.length > 0;
+        const hasExistingData = hasLoadedRef.current && incidentsRaw.length > 0;
+
+        if (hasNewData) {
+          applyAllData({
+            incidentsRaw: nextIncidents.length ? nextIncidents : nextDetections,
+            alertsRaw:     [],
+            assetsRaw:     [],
+            overview:      null,
+            severity:      null,
+            activity:      [],
+            topAssets:     [],
+            topCategories: [],
+            detections:    nextDetections,
+          });
+        } else if (!hasExistingData) {
+          // Pas de données du tout → marque initialisé quand même pour débloquer l'UI
+          setInitialized(true);
+          hasLoadedRef.current = true;
+        }
+        // Si hasExistingData && !hasNewData : garde les données en mémoire, ne fait rien
 
         // ── Phase 2 : données secondaires en arrière-plan ────────────
         Promise.allSettled([
