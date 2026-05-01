@@ -24,8 +24,8 @@ import InitialLoadingScreen from "../ui/InitialLoadingScreen";
 
 const SocDataContext = createContext(null);
 
-const CACHE_KEY = "specula_soc_cache_v5";
-const CACHE_TTL_MS = 5 * 60 * 1000;
+const CACHE_KEY    = "specula_soc_cache_v6";
+const CACHE_TTL_MS = 30 * 60 * 1000; // 30 min — localStorage persiste cross-session
 
 let memoryCache = null;
 
@@ -101,12 +101,13 @@ function isFresh(timestamp) {
 
 function readSessionCache() {
   try {
-    const raw = sessionStorage.getItem(CACHE_KEY);
+    // localStorage d'abord (persistant), sessionStorage en fallback
+    const raw = localStorage.getItem(CACHE_KEY) || sessionStorage.getItem(CACHE_KEY);
     if (!raw) return null;
-
     const parsed = JSON.parse(raw);
-    if (!parsed?.timestamp || !isFresh(parsed.timestamp)) return null;
-
+    if (!parsed?.timestamp) return null;
+    // Données périmées mais non nulles = utilisables (stale-while-revalidate côté frontend)
+    if (!isFresh(parsed.timestamp) && Date.now() - parsed.timestamp > 60 * 60 * 1000) return null;
     return parsed;
   } catch {
     return null;
@@ -115,7 +116,9 @@ function readSessionCache() {
 
 function writeSessionCache(data) {
   try {
-    sessionStorage.setItem(CACHE_KEY, JSON.stringify(data));
+    const serialized = JSON.stringify(data);
+    localStorage.setItem(CACHE_KEY, serialized);
+    sessionStorage.setItem(CACHE_KEY, serialized);
   } catch {
     // no-op
   }
@@ -159,8 +162,9 @@ export function SocDataProvider({ children }) {
   const [error, setError] = useState("");
   const [initialized, setInitialized] = useState(!!initialCache);
 
-  const hasLoadedRef = useRef(!!initialCache);
+  const hasLoadedRef  = useRef(!!initialCache);
   const isFetchingRef = useRef(false);
+  const retryTimerRef = useRef(null);
 
   const applyAllData = useCallback((nextData) => {
     const payload = {
@@ -275,6 +279,22 @@ export function SocDataProvider({ children }) {
       loadSocData();
     }
   }, [loadSocData]);
+
+  // Retry automatique si les données restent vides après 20s (backend en warmup)
+  useEffect(() => {
+    if (initialized && incidentsRaw.length === 0 && !isFetchingRef.current) {
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = setTimeout(() => {
+        loadSocData({ silent: true, force: true });
+      }, 20_000);
+    } else {
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+    }
+    return () => { if (retryTimerRef.current) clearTimeout(retryTimerRef.current); };
+  }, [initialized, incidentsRaw.length, loadSocData]);
 
   const value = useMemo(
     () => ({
