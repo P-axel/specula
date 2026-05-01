@@ -314,11 +314,12 @@ export default function IncidentInvestigation() {
     finally { setAiStarting(false); }
   };
 
-  const aiStatus   = aiData?.status ?? "none";
-  const aiReport   = aiData?.report ?? null;
-  const aiRunning  = aiStatus === "running" || aiStatus === "pending";
-  const aiDone     = aiStatus === "done";
-  const aiError    = aiStatus === "error" ? (aiData?.error ?? "Erreur analyse.") : null;
+  const aiStatus        = aiData?.status ?? "none";
+  const aiReport        = aiData?.report ?? null;
+  const aiRunning       = aiStatus === "running" || aiStatus === "pending";
+  const aiDone          = aiStatus === "done";
+  const aiNotApplicable = aiStatus === "not_applicable";
+  const aiError         = aiStatus === "error" ? (aiData?.error ?? "Erreur analyse.") : null;
 
   const {
     comments, attachments, statusHistory, loading,
@@ -523,26 +524,33 @@ export default function IncidentInvestigation() {
           <div className="inv-card inv-card--ai">
             <div className="inv-card__header inv-card__header--ai">
               <h2 className="inv-card__title">Analyse IA</h2>
-              <button
-                type="button"
-                className={`inv-ai-btn${(aiRunning || aiStarting) ? " inv-ai-btn--loading" : ""}`}
-                onClick={handleAiAnalyse}
-                disabled={aiRunning || aiStarting}
-              >
-                {aiStarting ? "Lancement…" : aiRunning ? "En cours…" : aiDone ? "Relancer" : "Lancer l'analyse"}
-              </button>
+              {!aiNotApplicable && (
+                <button
+                  type="button"
+                  className={`inv-ai-btn${(aiRunning || aiStarting) ? " inv-ai-btn--loading" : ""}`}
+                  onClick={handleAiAnalyse}
+                  disabled={aiRunning || aiStarting}
+                >
+                  {aiStarting ? "Lancement…" : aiRunning ? "En cours…" : aiDone ? "Relancer" : "Lancer l'analyse"}
+                </button>
+              )}
             </div>
             <div className="inv-card__body">
+              {aiNotApplicable && (
+                <p className="inv-ai-hint" style={{ color: "var(--c-text-muted, #355d78)" }}>
+                  Analyse IA non disponible pour les événements système Wazuh — ces alertes (dpkg, auditd, ports) nécessitent une qualification humaine.
+                </p>
+              )}
               {aiRunning && (
                 <div className="inv-ai-running">
                   <span className="inv-ai-spinner" />
-                  Agents en cours d'analyse — résultat automatique dans ~2-3 min…
+                  Analyse en cours — résultat automatique dans ~40s…
                 </div>
               )}
               {aiError && <p className="inv-ai-error">{aiError}</p>}
-              {!aiDone && !aiRunning && !aiError && (
+              {!aiDone && !aiRunning && !aiError && !aiNotApplicable && (
                 <p className="inv-ai-hint">
-                  IA locale — analyse la menace, évalue le risque réel et génère un plan de remédiation précis (~40s).
+                  IA locale — analyse la menace réseau, évalue le risque réel et génère un plan de remédiation précis (~40s).
                 </p>
               )}
               {aiDone && aiReport && <AiReportView report={aiReport} />}

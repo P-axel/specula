@@ -112,7 +112,7 @@ function AiWidget({ incidentId }) {
       if (!r.ok) return;
       const d = await r.json();
       setData(d);
-      if (d.status === "done" || d.status === "error" || d.status === "none") stopPoll();
+      if (d.status === "done" || d.status === "error" || d.status === "none" || d.status === "not_applicable") stopPoll();
     } catch { stopPoll(); }
   }, []);
 
@@ -154,9 +154,10 @@ function AiWidget({ incidentId }) {
 
   const status    = data?.status ?? "none";
   const report    = data?.report ?? null;
-  const isRunning = status === "running" || status === "pending";
-  const isDone    = status === "done";
-  const isError   = status === "error";
+  const isRunning      = status === "running" || status === "pending";
+  const isDone         = status === "done";
+  const isError        = status === "error";
+  const isNotApplicable = status === "not_applicable";
 
   const a = report?.analyst     ?? {};
   const r = report?.remediation ?? {};
@@ -168,20 +169,28 @@ function AiWidget({ incidentId }) {
     <div className="triage-ai">
       <div className="triage-ai__header">
         <span className="triage-ai__label">Analyse IA</span>
-        <button
-          type="button"
-          className={`triage-ai__btn${(isRunning || starting) ? " triage-ai__btn--loading" : ""}`}
-          onClick={analyse}
-          disabled={isRunning || starting}
-        >
-          {starting ? "Lancement…" : isRunning ? "En cours…" : isDone ? "Relancer" : "Analyser"}
-        </button>
+        {!isNotApplicable && (
+          <button
+            type="button"
+            className={`triage-ai__btn${(isRunning || starting) ? " triage-ai__btn--loading" : ""}`}
+            onClick={analyse}
+            disabled={isRunning || starting}
+          >
+            {starting ? "Lancement…" : isRunning ? "En cours…" : isDone ? "Relancer" : "Analyser"}
+          </button>
+        )}
       </div>
+
+      {isNotApplicable && (
+        <p className="triage-ai__hint" style={{ fontStyle: "italic" }}>
+          Réservée aux incidents réseau — qualifiez manuellement.
+        </p>
+      )}
 
       {isRunning && (
         <div className="triage-ai__progress">
           <span className="triage-ai__spinner" />
-          Agents en cours d'analyse — résultat automatique…
+          Analyse en cours — résultat automatique…
         </div>
       )}
 
