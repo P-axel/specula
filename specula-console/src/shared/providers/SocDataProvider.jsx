@@ -160,8 +160,9 @@ export function SocDataProvider({ children }) {
   const [detections, setDetections] = useState(boot.detections || []);
 
   const [loading, setLoading] = useState(!initialCache);
-  const [refreshing, setRefreshing] = useState(!!isStale); // stale = refresh silencieux
+  const [refreshing, setRefreshing] = useState(!!isStale);
   const [dataAge, setDataAge] = useState(initialCache?.timestamp || null);
+  const [dataVersion, setDataVersion] = useState(0); // incrémenté à chaque fetch réussi → re-anime les charts
   const [error, setError] = useState("");
   const [initialized, setInitialized] = useState(!!initialCache);
 
@@ -187,6 +188,7 @@ export function SocDataProvider({ children }) {
 
     setInitialized(true);
     setDataAge(payload.timestamp);
+    setDataVersion(v => v + 1);
     hasLoadedRef.current = true;
     memoryCache = payload;
     writeSessionCache(payload);
@@ -280,9 +282,14 @@ export function SocDataProvider({ children }) {
 
   useEffect(() => {
     if (!hasLoadedRef.current) {
+      // Première visite — fetch bloquant
       loadSocData();
+    } else if (isStale) {
+      // Données stale en localStorage — refresh silencieux immédiat
+      loadSocData({ silent: true, force: true });
     }
-  }, [loadSocData]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Retry automatique si les données restent vides après 20s (backend en warmup)
   useEffect(() => {
@@ -314,6 +321,7 @@ export function SocDataProvider({ children }) {
       loading,
       refreshing,
       dataAge,
+      dataVersion,
       error,
       initialized,
       reloadSocData: () => loadSocData({ force: true }),
