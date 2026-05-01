@@ -1,4 +1,4 @@
-/* ── Page ────────────────────────────────────────────────────── */
+/* ── Assets Page ─────────────────────────────────────────────── */
 .asc-page { display: flex; flex-direction: column; gap: 32px; padding: 24px; }
 
 /* ── Hero ────────────────────────────────────────────────────── */
@@ -56,3 +56,97 @@
 .asc-card__footer { display: flex; align-items: center; justify-content: space-between; font-size: 0.65rem; color: var(--c-text-muted, #355d78); font-family: 'Share Tech Mono', monospace; margin-top: 2px; padding-top: 8px; border-top: 1px solid var(--c-border, #183f58); }
 .asc-card__cta { color: var(--c-cyan-dim, #1a8faa); }
 .asc-empty { font-size: 0.8rem; color: var(--c-text-muted, #355d78); font-family: 'Share Tech Mono', monospace; }
+
+/* ── Grille hôtes observés (plus compacte) ───────────────────── */
+.asc-grid--observed {
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+
+/* ── Carte hôte observé (sans agent) ────────────────────────── */
+.asc-obs-card {
+  border: 1px dashed var(--c-border, #183f58);
+  border-radius: 6px;
+  background: rgba(2, 14, 22, 0.6);
+  padding: 12px 14px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.15s, background 0.15s;
+  opacity: 0.82;
+}
+.asc-obs-card:hover {
+  border-color: var(--c-border-bright, #24607e);
+  background: rgba(6, 26, 38, 0.9);
+  opacity: 1;
+}
+
+.asc-obs-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.asc-obs-card__left { display: flex; align-items: center; gap: 8px; }
+
+.asc-obs-card__ip {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.85rem;
+  color: var(--c-text-dim, #6899b4);
+}
+
+.asc-obs-card__badge {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px dashed var(--c-border, #183f58);
+  color: var(--c-text-muted, #355d78);
+}
+
+.asc-obs-card__score {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.9rem;
+}
+.asc-obs-card__score span { font-size: 0.55rem; color: var(--c-text-muted, #355d78); }
+
+.asc-obs-card__source {
+  font-size: 0.65rem;
+  font-family: 'Share Tech Mono', monospace;
+  color: var(--c-text-muted, #355d78);
+  font-style: italic;
+}
+
+.asc-obs-card__incidents { display: flex; flex-direction: column; gap: 4px; }
+.asc-obs-card__inc {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.68rem;
+  color: var(--c-text-dim, #6899b4);
+}
+.asc-obs-card__inc-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.asc-obs-card__clean {
+  font-size: 0.68rem;
+  font-family: 'Share Tech Mono', monospace;
+  color: var(--c-text-muted, #355d78);
+}
+
+.asc-obs-card__footer {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.62rem;
+  font-family: 'Share Tech Mono', monospace;
+  color: var(--c-text-muted, #355d78);
+  padding-top: 6px;
+  border-top: 1px dashed var(--c-border, #183f58);
+  margin-top: 2px;
+}
+.asc-obs-card__cta { color: var(--c-text-dim, #6899b4); }
