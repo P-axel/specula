@@ -78,6 +78,16 @@ def analyse_incident(incident_id: str) -> dict[str, Any]:
     if not incident:
         raise HTTPException(status_code=404, detail="Incident introuvable.")
 
+    # L'IA n'est fiable que sur les incidents réseau (Suricata)
+    # Les incidents système/endpoint Wazuh (dpkg, auditd, ports) génèrent des faux positifs IA
+    domain = str(incident.get("incident_domain") or incident.get("kind") or "").lower()
+    engine = str(incident.get("dominant_engine") or "").lower()
+    if domain not in ("network", "réseau") and engine == "wazuh":
+        return {
+            "status": "not_applicable",
+            "reason": "L'analyse IA est réservée aux incidents réseau. Les événements système Wazuh (dpkg, auditd, ports) sont mieux qualifiés par l'analyste humain."
+        }
+
     from ai.ollama_client import is_available
     if not is_available():
         raise HTTPException(

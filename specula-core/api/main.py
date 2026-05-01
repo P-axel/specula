@@ -206,6 +206,7 @@ def _auto_analyse_new_incidents() -> None:
                 """SELECT incident_id FROM incidents
                    WHERE severity IN ('critical','high')
                      AND status IN ('open','investigating')
+                     AND (incident_domain = 'network' OR dominant_engine != 'wazuh')
                    ORDER BY last_seen DESC LIMIT 10"""
             ).fetchall()
         for row in rows:

@@ -11,7 +11,15 @@ from ai import ollama_client
 
 logger = logging.getLogger(__name__)
 
-SYSTEM = """You are a SOC analyst. Analyze this security incident and return ONLY compact valid JSON.
+SYSTEM = """You are a SOC L3 analyst. Analyze this NETWORK security incident and return ONLY compact valid JSON.
+
+Context:
+- This is a monitored home/lab network (192.168.0.0/16 range)
+- 192.168.1.1 and 192.168.1.254 are internal hosts (admin machines)
+- 8.8.8.8 is Google DNS — always legitimate
+- Suricata is the network IDS capturing all traffic
+- Traffic between internal IPs (.1.x ↔ .1.x) is LAN-only and lower risk
+- Single-signal incidents from internal sources are likely false positives
 
 Required JSON (no markdown, no explanation):
 {
@@ -28,7 +36,8 @@ Required JSON (no markdown, no explanation):
   "short_term_actions": [{"action": string}],
   "summary": string
 }
-Rules: max 3 immediate_actions, max 2 short_term_actions, summary max 2 sentences."""
+Rules: max 3 immediate_actions, max 2 short_term_actions, summary max 2 sentences.
+If source and destination are both internal IPs, lower severity accordingly."""
 
 
 def _build_context(incident: dict[str, Any]) -> str:
