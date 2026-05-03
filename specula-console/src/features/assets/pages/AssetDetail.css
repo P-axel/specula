@@ -53,3 +53,54 @@
 .ad-inc__ai-badge--done { background: rgba(57,255,20,0.08); color: #39ff14; }
 
 .ad-empty { font-family: 'Share Tech Mono', monospace; font-size: 0.75rem; color: var(--c-text-muted, #355d78); padding: 32px 0; text-align: center; }
+
+/* ── CVE Section ─────────────────────────────────────────────── */
+.ad-cve-counts {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 10px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.65rem;
+  color: var(--c-text-muted, #355d78);
+}
+.ad-cve-badge {
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 0.6rem;
+  font-family: 'Share Tech Mono', monospace;
+}
+.ad-cve-badge--critical { background: rgba(255,34,68,0.12); color: #ff2244; }
+.ad-cve-badge--high     { background: rgba(255,107,0,0.12); color: #ff6b00; }
+.ad-cve-badge--medium   { background: rgba(255,170,0,0.10); color: #ffaa00; }
+.ad-cve-badge--low      { background: rgba(79,184,255,0.10); color: #4fb8ff; }
+.ad-cve-badge---        { background: var(--c-border, #183f58); color: var(--c-text-muted, #355d78); }
+
+.ad-cve-list { display: flex; flex-direction: column; gap: 4px; }
+.ad-cve-row {
+  display: grid;
+  grid-template-columns: 160px 160px 70px 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  border: 1px solid var(--c-border, #183f58);
+  border-left: 3px solid var(--c-border, #183f58);
+  border-radius: 4px;
+  background: var(--c-bg-panel, #061a26);
+  font-size: 0.72rem;
+}
+.ad-cve-row--critical { border-left-color: #ff2244; }
+.ad-cve-row--high     { border-left-color: #ff6b00; }
+.ad-cve-row--medium   { border-left-color: #ffaa00; }
+.ad-cve-row--low      { border-left-color: #4fb8ff; }
+
+.ad-cve-id   { font-family: 'Share Tech Mono', monospace; font-size: 0.68rem; color: var(--c-cyan-dim, #1a8faa); flex-shrink: 0; }
+.ad-cve-pkg  { font-family: 'Share Tech Mono', monospace; font-size: 0.65rem; color: var(--c-text-dim, #6899b4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ad-cve-sev  { font-family: 'Share Tech Mono', monospace; font-size: 0.62rem; text-transform: uppercase; text-align: center; padding: 1px 4px; border-radius: 3px; }
+.ad-cve-sev--critical { color: #ff2244; }
+.ad-cve-sev--high     { color: #ff6b00; }
+.ad-cve-sev--medium   { color: #ffaa00; }
+.ad-cve-sev--low      { color: #4fb8ff; }
+.ad-cve-sev--unknown  { color: var(--c-text-muted, #355d78); }
+.ad-cve-title { font-size: 0.68rem; color: var(--c-text-dim, #6899b4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ad-cve-more  { font-family: 'Share Tech Mono', monospace; font-size: 0.65rem; color: var(--c-text-muted, #355d78); text-align: center; padding: 8px; }

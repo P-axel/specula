@@ -205,6 +205,7 @@ _start-wazuh: wazuh-certs
 		echo ""; \
 	fi
 	@$(MAKE) --no-print-directory wazuh-security-init
+	@$(MAKE) --no-print-directory wazuh-start-services
 	@$(MAKE) --no-print-directory wazuh-enable-vuln
 	@echo ""
 	@echo "  ════════════════════════════════════"
@@ -256,6 +257,14 @@ wazuh-security-init:
 		  -key $$CERTS/admin-key.pem \
 		  -h localhost -p 9200 2>&1 | grep -E "SUCC:|Done"' || true
 	@echo "[specula] Sécurité OpenSearch initialisée."
+
+# ─── Démarrage automatique des services Wazuh ──────────────────
+# wazuh-control start est idempotent : sans effet si déjà actif
+wazuh-start-services:
+	@echo "[specula] Démarrage des services Wazuh manager..."
+	@docker exec -u root wazuh-manager /var/ossec/bin/wazuh-control start 2>&1 \
+		| grep -E "Started|already|Completed|error" || true
+	@echo "[specula] Services Wazuh actifs."
 
 # ─── Détection de vulnérabilités Wazuh ─────────────────────────
 # Active le vulnerability-detector dans le manager (Debian 12 bookworm).

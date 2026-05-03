@@ -53,15 +53,20 @@ function AiStatusBadge({ incidentId }) {
 export default function AssetDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [summary, setSummary] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [summary, setSummary]   = useState(null);
+  const [cveData, setCveData]   = useState(null);
+  const [loading, setLoading]   = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    fetch(`${API_BASE}/assets/${id}/summary`)
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { setSummary(d); setLoading(false); })
-      .catch(() => setLoading(false));
+    Promise.allSettled([
+      fetch(`${API_BASE}/assets/${id}/summary`).then(r => r.ok ? r.json() : null),
+      fetch(`${API_BASE}/assets/${id}/cves?limit=15`).then(r => r.ok ? r.json() : null),
+    ]).then(([sumR, cveR]) => {
+      if (sumR.status === "fulfilled") setSummary(sumR.value);
+      if (cveR.status === "fulfilled") setCveData(cveR.value);
+      setLoading(false);
+    });
   }, [id]);
 
   // Lance l'IA automatiquement sur les incidents high/critical ouverts sans analyse
@@ -195,6 +200,40 @@ export default function AssetDetail() {
 
       {incidents.length === 0 && (
         <div className="ad-empty">Aucun incident enregistré pour cet actif.</div>
+      )}
+
+      {/* ── CVE ─────────────────────────────────────────────────── */}
+      {cveData && (
+        <section className="ad-section">
+          <h2 className="ad-section__title">
+            Vulnérabilités CVE
+            <span className="ad-cve-counts">
+              {cveData.total} actives
+              {Object.entries(cveData.stats || {}).filter(([,n]) => n > 0).map(([sev, n]) => (
+                <span key={sev} className={`ad-cve-badge ad-cve-badge--${sev.toLowerCase()}`}>{sev} {n}</span>
+              ))}
+            </span>
+          </h2>
+          {cveData.cves?.length > 0 ? (
+            <div className="ad-cve-list">
+              {cveData.cves.map(cve => (
+                <div key={cve.cve} className={`ad-cve-row ad-cve-row--${cve.severity?.toLowerCase() || "unknown"}`}>
+                  <span className="ad-cve-id">{cve.cve}</span>
+                  <span className="ad-cve-pkg">{cve.package}</span>
+                  <span className={`ad-cve-sev ad-cve-sev--${cve.severity?.toLowerCase() || "unknown"}`}>
+                    {cve.severity === "-" ? "?" : cve.severity}
+                  </span>
+                  <span className="ad-cve-title">{cve.title}</span>
+                </div>
+              ))}
+              {cveData.total > 15 && (
+                <p className="ad-cve-more">+{cveData.total - 15} autres vulnérabilités — consultez le rapport Wazuh complet.</p>
+              )}
+            </div>
+          ) : (
+            <div className="ad-empty">Aucune CVE active détectée.</div>
+          )}
+        </section>
       )}
     </div>
   );

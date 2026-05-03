@@ -48,7 +48,7 @@ function normalizeAsset(asset) {
   };
 }
 
-function AssetCard({ asset, summary, onClick }) {
+function AssetCard({ asset, summary, cveCount, onClick }) {
   const score = summary?.risk_score ?? null;
   const stats = summary?.stats ?? {};
   const active = asset.displayStatus === "active";
@@ -66,12 +66,27 @@ function AssetCard({ asset, summary, onClick }) {
           <span className={`asc-card__status-dot${active ? " asc-card__status-dot--on" : ""}`} />
           <span className="asc-card__name">{asset.displayName}</span>
         </div>
-        {score !== null && (
-          <div className="asc-card__score" style={{ color: riskColor(score) }}>
-            <span className="asc-card__score-val">{score}</span>
-            <span className="asc-card__score-lbl">/100</span>
-          </div>
-        )}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+          {score !== null && (
+            <div className="asc-card__score" style={{ color: riskColor(score) }}>
+              <span className="asc-card__score-val">{score}</span>
+              <span className="asc-card__score-lbl">/100</span>
+            </div>
+          )}
+          {cveCount > 0 && (
+            <span style={{
+              fontFamily: "'Share Tech Mono', monospace",
+              fontSize: "0.6rem",
+              color: cveCount > 50 ? "#ff6b00" : "#ffaa00",
+              background: "rgba(255,107,0,0.08)",
+              border: "1px solid rgba(255,107,0,0.2)",
+              borderRadius: 3,
+              padding: "1px 6px",
+            }}>
+              {cveCount} CVE
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="asc-card__meta">
@@ -164,9 +179,22 @@ function ObservedCard({ asset, summary, onClick }) {
 }
 
 export default function AssetsPage() {
-  const { assetsRaw, incidentsRaw } = useSocData();
+  const { assetsRaw, incidentsRaw, refreshSocData } = useSocData();
   const navigate = useNavigate();
-  const [summaries, setSummaries] = useState({});
+  const [summaries, setSummaries]   = useState({});
+  const [cveCounts, setCveCounts]   = useState({});
+  const [lastRefresh, setLastRefresh] = useState(Date.now());
+
+  // Auto-refresh toutes les 2 minutes
+  useEffect(() => {
+    const timer = setInterval(() => {
+      refreshSocData();
+      setSummaries({});
+      setCveCounts({});
+      setLastRefresh(Date.now());
+    }, 120_000);
+    return () => clearInterval(timer);
+  }, [refreshSocData]);
 
   const assets = useMemo(() =>
     (assetsRaw || []).map(normalizeAsset).filter(a => !a.isCore),
@@ -186,15 +214,23 @@ export default function AssetsPage() {
     return Object.values(ipMap);
   }, [assets, incidentsRaw]);
 
-  // Charge les summaries pour chaque actif
+  // Charge les summaries + CVE counts pour chaque actif
   useEffect(() => {
     const all = [...assets, ...observedIPs];
     all.forEach(asset => {
-      const id = encodeURIComponent(asset.asset_id || asset.displayName);
+      const key = asset.asset_id || asset.displayName;
+      const id  = encodeURIComponent(key);
       fetch(`${API_BASE}/assets/${id}/summary`)
         .then(r => r.ok ? r.json() : null)
-        .then(d => d && setSummaries(prev => ({ ...prev, [asset.asset_id || asset.displayName]: d })))
+        .then(d => d && setSummaries(prev => ({ ...prev, [key]: d })))
         .catch(() => {});
+      // CVE count uniquement pour les agents Wazuh (pas les hôtes observés)
+      if (asset.displayStatus !== "observed") {
+        fetch(`${API_BASE}/assets/${id}/cves?limit=1`)
+          .then(r => r.ok ? r.json() : null)
+          .then(d => d && setCveCounts(prev => ({ ...prev, [key]: d.total || 0 })))
+          .catch(() => {});
+      }
     });
   }, [assets, observedIPs]);
 
@@ -206,7 +242,12 @@ export default function AssetsPage() {
         <div>
           <div className="asc-hero__eyebrow">Surveillance des actifs</div>
           <h1 className="asc-hero__title">Postes & Endpoints</h1>
-          <p className="asc-hero__desc">Vue par machine — incidents actifs, score de risque, historique.</p>
+          <p className="asc-hero__desc">
+            Vue par machine — incidents actifs, score de risque, historique.
+            <span style={{ color: "var(--c-text-muted)", marginLeft: 12, fontSize: "0.65rem", fontFamily: "'Share Tech Mono', monospace" }}>
+              Actualisation automatique · dernière : {new Date(lastRefresh).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          </p>
         </div>
         <div className="asc-hero__stats">
           <div className="asc-hero__stat">
@@ -237,6 +278,7 @@ export default function AssetsPage() {
                 key={asset.asset_id}
                 asset={asset}
                 summary={summaries[asset.asset_id]}
+                cveCount={cveCounts[asset.asset_id]}
                 onClick={() => navigate(`/assets/${encodeURIComponent(asset.asset_id)}`)}
               />
             ))}

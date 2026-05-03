@@ -47,6 +47,87 @@ def list_assets() -> list[dict]:
         return []
 
 
+@router.get("/assets/{asset_id}/cves")
+def asset_cves(asset_id: str, limit: int = 20) -> dict[str, Any]:
+    """CVE actives pour un actif, depuis Wazuh indexer."""
+    import os, urllib.request, json as _json
+    INDEXER_URL  = os.getenv("WAZUH_INDEXER_URL", "https://wazuh-indexer:9200")
+    INDEXER_USER = os.getenv("WAZUH_INDEXER_USERNAME", "admin")
+    INDEXER_PASS = os.getenv("WAZUH_INDEXER_PASSWORD", "SecretPassword")
+
+    # Résout asset_id → agent name
+    asset_name = asset_id
+    try:
+        asset = assets_service.get_asset(asset_id)
+        if asset:
+            asset_name = asset.to_dict().get("name") or asset.to_dict().get("hostname") or asset_id
+    except Exception:
+        pass
+
+    query = {
+        "size": 200,
+        "query": {"bool": {"must": [
+            {"match": {"agent.name": asset_name}},
+            {"exists": {"field": "data.vulnerability.cve"}},
+            {"match": {"data.vulnerability.status": "Active"}},
+        ]}},
+        "_source": [
+            "data.vulnerability.cve", "data.vulnerability.severity",
+            "data.vulnerability.package.name", "data.vulnerability.title",
+            "data.vulnerability.score.base", "@timestamp"
+        ],
+        "sort": [{"@timestamp": {"order": "desc"}}],
+    }
+
+    try:
+        import base64
+        creds = base64.b64encode(f"{INDEXER_USER}:{INDEXER_PASS}".encode()).decode()
+        req = urllib.request.Request(
+            f"{INDEXER_URL}/wazuh-alerts-*/_search",
+            data=_json.dumps(query).encode(),
+            headers={"Content-Type": "application/json", "Authorization": f"Basic {creds}"},
+        )
+        import ssl
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        with urllib.request.urlopen(req, timeout=10, context=ctx) as r:
+            data = _json.loads(r.read())
+    except Exception as e:
+        logger.warning("CVE fetch failed for %s: %s", asset_name, e)
+        return {"asset": asset_name, "cves": [], "stats": {}}
+
+    SEV_ORDER = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3, "-": 4}
+    seen: set = set()
+    cves = []
+    for hit in data.get("hits", {}).get("hits", []):
+        v = hit["_source"].get("data", {}).get("vulnerability", {})
+        cve_id = v.get("cve", "")
+        if not cve_id or cve_id in seen:
+            continue
+        seen.add(cve_id)
+        cves.append({
+            "cve":      cve_id,
+            "severity": v.get("severity", "-"),
+            "package":  v.get("package", {}).get("name", "?"),
+            "title":    v.get("title", "")[:120],
+            "score":    v.get("score", {}).get("base", "-"),
+        })
+
+    cves.sort(key=lambda x: SEV_ORDER.get(x["severity"], 4))
+    counts = {}
+    for c in cves:
+        s = c["severity"]
+        counts[s] = counts.get(s, 0) + 1
+
+    return {
+        "asset":  asset_name,
+        "total":  len(cves),
+        "stats":  counts,
+        "cves":   cves[:limit],
+    }
+
+
 @router.get("/assets/{asset_id}/summary")
 def asset_summary(asset_id: str) -> dict[str, Any]:
     """Vue enrichie d'un actif : incidents, score de risque, statuts."""
