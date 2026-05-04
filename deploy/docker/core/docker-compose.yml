@@ -36,7 +36,7 @@ services:
     working_dir: /app/specula-core
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - ../../../specula-core:/app/specula-core
       - ../../../.env:/app/.env:ro
@@ -69,7 +69,7 @@ services:
       dockerfile: Dockerfile
     container_name: specula-console
     ports:
-      - "5173:5173"
+      - "127.0.0.1:5173:5173"
     volumes:
       - ../../../specula-console:/app
       - /app/node_modules
@@ -99,7 +99,7 @@ services:
     hostname: wazuh-indexer
     restart: unless-stopped
     ports:
-      - "9200:9200"
+      - "127.0.0.1:9200:9200"
     environment:
       OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
       bootstrap.memory_lock: "true"
@@ -135,9 +135,9 @@ services:
     hostname: wazuh-manager
     restart: unless-stopped
     ports:
-      - "55000:55000"
-      - "1514:1514"
-      - "1515:1515"
+      - "127.0.0.1:55000:55000"
+      - "0.0.0.0:1514:1514"
+      - "0.0.0.0:1515:1515"
     environment:
       INDEXER_URL: https://wazuh-indexer:9200
       INDEXER_USERNAME: ${WAZUH_INDEXER_USERNAME:-admin}
@@ -206,7 +206,7 @@ services:
     container_name: specula-ollama
     restart: unless-stopped
     ports:
-      - "11434:11434"
+      - "127.0.0.1:11434:11434"
     volumes:
       - ollama-models:/root/.ollama
     environment:
