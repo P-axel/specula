@@ -1464,6 +1464,7 @@
   color: var(--c-text-muted, #355d78);
   margin: 0;
 }
+.triage-ai__hint--na { font-style: italic; }
 
 .triage-ai__error {
   font-size: 0.7rem;

@@ -50,22 +50,24 @@ def list_assets() -> list[dict]:
 @router.get("/assets/{asset_id}/cves")
 def asset_cves(asset_id: str, limit: int = 20) -> dict[str, Any]:
     """CVE actives pour un actif, depuis Wazuh indexer."""
-    import os, urllib.request, json as _json
+    import os, base64, ssl, urllib.request, json as _json
     INDEXER_URL  = os.getenv("WAZUH_INDEXER_URL", "https://wazuh-indexer:9200")
     INDEXER_USER = os.getenv("WAZUH_INDEXER_USERNAME", "admin")
     INDEXER_PASS = os.getenv("WAZUH_INDEXER_PASSWORD", "SecretPassword")
 
-    # Résout asset_id → agent name
     asset_name = asset_id
     try:
         asset = assets_service.get_asset(asset_id)
         if asset:
-            asset_name = asset.to_dict().get("name") or asset.to_dict().get("hostname") or asset_id
+            d = asset.to_dict()
+            asset_name = d.get("name") or d.get("hostname") or asset_id
     except Exception:
         pass
 
+    # Déduplication côté OpenSearch via collapse — évite de ramener 200 doublons en Python
     query = {
-        "size": 200,
+        "size": limit,
+        "collapse": {"field": "data.vulnerability.cve.keyword"},
         "query": {"bool": {"must": [
             {"match": {"agent.name": asset_name}},
             {"exists": {"field": "data.vulnerability.cve"}},
@@ -74,20 +76,21 @@ def asset_cves(asset_id: str, limit: int = 20) -> dict[str, Any]:
         "_source": [
             "data.vulnerability.cve", "data.vulnerability.severity",
             "data.vulnerability.package.name", "data.vulnerability.title",
-            "data.vulnerability.score.base", "@timestamp"
+            "data.vulnerability.score.base",
         ],
-        "sort": [{"@timestamp": {"order": "desc"}}],
+        "aggs": {
+            "total_unique": {"cardinality": {"field": "data.vulnerability.cve.keyword"}},
+            "by_severity":  {"terms": {"field": "data.vulnerability.severity.keyword", "size": 10}},
+        },
     }
 
     try:
-        import base64
         creds = base64.b64encode(f"{INDEXER_USER}:{INDEXER_PASS}".encode()).decode()
         req = urllib.request.Request(
             f"{INDEXER_URL}/wazuh-alerts-*/_search",
             data=_json.dumps(query).encode(),
             headers={"Content-Type": "application/json", "Authorization": f"Basic {creds}"},
         )
-        import ssl
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
@@ -95,17 +98,15 @@ def asset_cves(asset_id: str, limit: int = 20) -> dict[str, Any]:
             data = _json.loads(r.read())
     except Exception as e:
         logger.warning("CVE fetch failed for %s: %s", asset_name, e)
-        return {"asset": asset_name, "cves": [], "stats": {}}
+        return {"asset": asset_name, "cves": [], "stats": {}, "total": 0}
 
     SEV_ORDER = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3, "-": 4}
-    seen: set = set()
     cves = []
     for hit in data.get("hits", {}).get("hits", []):
         v = hit["_source"].get("data", {}).get("vulnerability", {})
         cve_id = v.get("cve", "")
-        if not cve_id or cve_id in seen:
+        if not cve_id:
             continue
-        seen.add(cve_id)
         cves.append({
             "cve":      cve_id,
             "severity": v.get("severity", "-"),
@@ -115,16 +116,16 @@ def asset_cves(asset_id: str, limit: int = 20) -> dict[str, Any]:
         })
 
     cves.sort(key=lambda x: SEV_ORDER.get(x["severity"], 4))
-    counts = {}
-    for c in cves:
-        s = c["severity"]
-        counts[s] = counts.get(s, 0) + 1
+
+    aggs  = data.get("aggregations", {})
+    total = aggs.get("total_unique", {}).get("value", len(cves))
+    counts = {b["key"]: b["doc_count"] for b in aggs.get("by_severity", {}).get("buckets", [])}
 
     return {
         "asset":  asset_name,
-        "total":  len(cves),
+        "total":  total,
         "stats":  counts,
-        "cves":   cves[:limit],
+        "cves":   cves,
     }
 
 

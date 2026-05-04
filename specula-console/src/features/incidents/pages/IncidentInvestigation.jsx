@@ -549,7 +549,7 @@ export default function IncidentInvestigation() {
               )}
               {aiError && <p className="inv-ai-error">{aiError}</p>}
               {!aiDone && !aiRunning && !aiError && !aiNotApplicable && (
-                <p className="inv-ai-hint">
+                <p className="inv-ai-hint inv-ai-hint--idle">
                   IA locale — analyse la menace réseau, évalue le risque réel et génère un plan de remédiation précis (~40s).
                 </p>
               )}

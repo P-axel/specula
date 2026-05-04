@@ -150,3 +150,8 @@
   margin-top: 2px;
 }
 .asc-obs-card__cta { color: var(--c-text-dim, #6899b4); }
+
+.asc-card__top-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.asc-card__cve-badge { font-family: 'Share Tech Mono', monospace; font-size: 0.6rem; color: #ffaa00; background: rgba(255,107,0,0.08); border: 1px solid rgba(255,107,0,0.2); border-radius: 3px; padding: 1px 6px; }
+.asc-card__cve-badge--high { color: #ff6b00; }
+.asc-hero__refresh-ts { color: var(--c-text-muted, #355d78); margin-left: 12px; font-size: 0.65rem; font-family: 'Share Tech Mono', monospace; }

@@ -291,19 +291,16 @@ export function SocDataProvider({ children }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Retry automatique si les données restent vides après 20s (backend en warmup)
+  // Retry si données vides après 20s — ne se déclenche qu'une fois (initialized + length=0)
   useEffect(() => {
-    if (initialized && incidentsRaw.length === 0 && !isFetchingRef.current) {
-      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
-      retryTimerRef.current = setTimeout(() => {
-        loadSocData({ silent: true, force: true });
-      }, 20_000);
-    } else {
-      if (retryTimerRef.current) {
-        clearTimeout(retryTimerRef.current);
-        retryTimerRef.current = null;
-      }
+    if (!initialized || incidentsRaw.length > 0) {
+      if (retryTimerRef.current) { clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
+      return;
     }
+    if (isFetchingRef.current) return;
+    retryTimerRef.current = setTimeout(() => {
+      if (incidentsRaw.length === 0) loadSocData({ silent: true, force: true });
+    }, 20_000);
     return () => { if (retryTimerRef.current) clearTimeout(retryTimerRef.current); };
   }, [initialized, incidentsRaw.length, loadSocData]);
 

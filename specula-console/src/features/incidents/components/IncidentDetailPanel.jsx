@@ -182,7 +182,7 @@ function AiWidget({ incidentId }) {
       </div>
 
       {isNotApplicable && (
-        <p className="triage-ai__hint" style={{ fontStyle: "italic" }}>
+        <p className="triage-ai__hint triage-ai__hint--na">
           Réservée aux incidents réseau — qualifiez manuellement.
         </p>
       )}

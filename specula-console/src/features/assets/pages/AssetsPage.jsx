@@ -66,7 +66,7 @@ function AssetCard({ asset, summary, cveCount, onClick }) {
           <span className={`asc-card__status-dot${active ? " asc-card__status-dot--on" : ""}`} />
           <span className="asc-card__name">{asset.displayName}</span>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+        <div className="asc-card__top-right">
           {score !== null && (
             <div className="asc-card__score" style={{ color: riskColor(score) }}>
               <span className="asc-card__score-val">{score}</span>
@@ -74,15 +74,7 @@ function AssetCard({ asset, summary, cveCount, onClick }) {
             </div>
           )}
           {cveCount > 0 && (
-            <span style={{
-              fontFamily: "'Share Tech Mono', monospace",
-              fontSize: "0.6rem",
-              color: cveCount > 50 ? "#ff6b00" : "#ffaa00",
-              background: "rgba(255,107,0,0.08)",
-              border: "1px solid rgba(255,107,0,0.2)",
-              borderRadius: 3,
-              padding: "1px 6px",
-            }}>
+            <span className={`asc-card__cve-badge${cveCount > 50 ? " asc-card__cve-badge--high" : ""}`}>
               {cveCount} CVE
             </span>
           )}
@@ -189,9 +181,8 @@ export default function AssetsPage() {
   useEffect(() => {
     const timer = setInterval(() => {
       refreshSocData();
-      setSummaries({});
-      setCveCounts({});
       setLastRefresh(Date.now());
+      // Ne pas effacer summaries/cveCounts — on garde l'affichage pendant le reload
     }, 120_000);
     return () => clearInterval(timer);
   }, [refreshSocData]);
@@ -244,7 +235,7 @@ export default function AssetsPage() {
           <h1 className="asc-hero__title">Postes & Endpoints</h1>
           <p className="asc-hero__desc">
             Vue par machine — incidents actifs, score de risque, historique.
-            <span style={{ color: "var(--c-text-muted)", marginLeft: 12, fontSize: "0.65rem", fontFamily: "'Share Tech Mono', monospace" }}>
+            <span className="asc-hero__refresh-ts">
               Actualisation automatique · dernière : {new Date(lastRefresh).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
             </span>
           </p>
