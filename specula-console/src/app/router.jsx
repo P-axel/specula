@@ -7,6 +7,7 @@ import AssetsPage from "../features/assets/pages/AssetsPage";
 import AssetDetail from "../features/assets/pages/AssetDetail";
 import Incidents from "../features/incidents/pages/Incidents";
 import IncidentInvestigation from "../features/incidents/pages/IncidentInvestigation";
+import NotificationsPage from "../features/notifications/pages/NotificationsPage";
 
 export const router = createBrowserRouter([
   {
@@ -36,6 +37,10 @@ export const router = createBrowserRouter([
       {
         path: "incidents/:id",
         element: <IncidentInvestigation />,
+      },
+      {
+        path: "notifications",
+        element: <NotificationsPage />,
       },
     ],
   },

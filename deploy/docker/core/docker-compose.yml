@@ -49,8 +49,9 @@ services:
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    user: "1000:1000"
     networks:
-      - specula-net
+      - specula-backend-net
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=10)"]
       interval: 15s
@@ -81,12 +82,66 @@ services:
     command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
     restart: unless-stopped
     networks:
-      - specula-net
+      - specula-frontend-net
     deploy:
       resources:
         limits:
           cpus: "1.0"
           memory: 384M
+
+  # ═══════════════════════════════════════════════════════════════
+  # Notifications push (ntfy — auto-hébergé, souverain)
+  # ═══════════════════════════════════════════════════════════════
+
+  specula-ntfy:
+    image: binwiederhier/ntfy:latest
+    container_name: specula-ntfy
+    restart: unless-stopped
+    command: serve --config /etc/ntfy/server.yml
+    ports:
+      - "127.0.0.1:2586:80"
+    volumes:
+      - ./ntfy/server.yml:/etc/ntfy/server.yml:ro
+      - ntfy-cache:/var/cache/ntfy
+    networks:
+      - specula-backend-net
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          memory: 64M
+
+  # ═══════════════════════════════════════════════════════════════
+  # HTTPS / Reverse proxy (--profile ssl)
+  # Sans ce profil : accès direct localhost (dev/lab)
+  # Avec ce profil : port 443 → console + API derrière TLS
+  # ═══════════════════════════════════════════════════════════════
+
+  specula-nginx:
+    profiles: [ssl]
+    image: nginx:alpine
+    container_name: specula-nginx
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:80:80"
+      - "0.0.0.0:443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/generate-certs.sh:/docker-entrypoint.d/40-specula-certs.sh:ro
+      - specula-certs:/etc/nginx/certs
+    depends_on:
+      specula-backend:
+        condition: service_healthy
+      specula-console:
+        condition: service_started
+    networks:
+      - specula-frontend-net
+      - specula-backend-net
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 64M
 
   # ═══════════════════════════════════════════════════════════════
   # Stack Wazuh (--profile wazuh)
@@ -121,7 +176,7 @@ services:
       - ./wazuh/opensearch.yml:/usr/share/wazuh-indexer/opensearch.yml:ro
       - ./wazuh/internal_users.yml:/usr/share/wazuh-indexer/opensearch-security/internal_users.yml:ro
     networks:
-      - specula-net
+      - specula-backend-net
     deploy:
       resources:
         limits:
@@ -160,7 +215,7 @@ services:
     depends_on:
       - wazuh-indexer
     networks:
-      - specula-net
+      - specula-backend-net
     deploy:
       resources:
         limits:
@@ -189,7 +244,7 @@ services:
     depends_on:
       - wazuh-manager
     networks:
-      - specula-net
+      - specula-backend-net
     deploy:
       resources:
         limits:
@@ -198,8 +253,8 @@ services:
 
   # ═══════════════════════════════════════════════════════════════
   # Module IA (--profile ai) — analyse locale via Ollama
-  # CPU plafonné : laisse toujours 30% au système hôte
   # ═══════════════════════════════════════════════════════════════
+
   specula-ollama:
     profiles: [ai]
     image: ollama/ollama:latest
@@ -214,7 +269,7 @@ services:
       OLLAMA_NUM_PARALLEL: "1"
       OLLAMA_MAX_LOADED_MODELS: "1"
     networks:
-      - specula-net
+      - specula-backend-net
     deploy:
       resources:
         limits:
@@ -222,11 +277,16 @@ services:
           memory: 6G
 
 networks:
-  specula-net:
+  specula-frontend-net:
     driver: bridge
-    name: specula-net
+    name: specula-frontend-net
+  specula-backend-net:
+    driver: bridge
+    name: specula-backend-net
 
 volumes:
+  ntfy-cache:
+  specula-certs:
   wazuh-agent-keys:
   wazuh-indexer-data:
   wazuh-manager-etc:

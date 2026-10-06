@@ -107,6 +107,34 @@ check:
 		fi; \
 		echo ""; \
 	fi; \
+	echo "  Sécurité (credentials) :"; \
+	if [ -f .env ]; then \
+		WARN=0; \
+		if grep -q '^WAZUH_INDEXER_PASSWORD=SecretPassword' .env 2>/dev/null; then \
+			echo "  [!!] WAZUH_INDEXER_PASSWORD=SecretPassword — mot de passe par défaut, changez-le"; \
+			WARN=1; \
+		fi; \
+		if grep -q '^WAZUH_PASSWORD=wazuh' .env 2>/dev/null; then \
+			echo "  [!!] WAZUH_PASSWORD=wazuh — mot de passe par défaut, changez-le"; \
+			WARN=1; \
+		fi; \
+		AUTH_ENABLED=$$(grep '^SPECULA_AUTH_ENABLED=' .env 2>/dev/null | cut -d= -f2); \
+		AUTH_PASS=$$(grep '^SPECULA_AUTH_PASSWORD=' .env 2>/dev/null | cut -d= -f2); \
+		if [ "$$AUTH_ENABLED" = "true" ] && [ "$$AUTH_PASS" = "specula" ]; then \
+			echo "  [!!] SPECULA_AUTH_PASSWORD=specula avec auth activée — changez-le"; \
+			WARN=1; \
+		fi; \
+		AUTH_SECRET=$$(grep '^SPECULA_AUTH_SECRET=' .env 2>/dev/null | cut -d= -f2); \
+		if [ "$$AUTH_SECRET" = "change-me-in-production" ]; then \
+			echo "  [!!] SPECULA_AUTH_SECRET non changé — générez un secret :"; \
+			echo "       python3 -c \"import secrets; print(secrets.token_hex(32))\""; \
+			WARN=1; \
+		fi; \
+		if [ "$$WARN" = "0" ]; then \
+			echo "  [OK] Credentials personnalisés"; \
+		fi; \
+	fi; \
+	echo ""; \
 	if [ "$$OK" = "1" ]; then \
 		echo "  Tout est prêt. Lance : make up"; \
 	else \
@@ -130,6 +158,11 @@ open:
 	@if [ -f .env.example ]; then \
 		cp .env.example .env; \
 		echo "[specula] .env créé depuis .env.example"; \
+		TOPIC=$$(python3 -c "import secrets; print('specula-' + secrets.token_hex(8))" 2>/dev/null || echo "specula-$(shell date +%s)"); \
+		echo "NTFY_TOPIC=$$TOPIC" >> .env; \
+		echo "NTFY_BASE_URL=http://specula-ntfy:80" >> .env; \
+		echo "NTFY_PUBLIC_URL=http://localhost:2586" >> .env; \
+		echo "[specula] Topic ntfy généré : $$TOPIC"; \
 	else \
 		echo "[specula] ERREUR: .env.example manquant"; exit 1; \
 	fi

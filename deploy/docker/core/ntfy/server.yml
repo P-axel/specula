@@ -1,0 +1,13 @@
+# ntfy — serveur de notifications push auto-hébergé
+# Toutes les données restent sur la machine Specula, aucun appel externe.
+base-url: ""           # Laissé vide — ntfy utilise l'URL de la requête entrante
+listen-http: :80
+cache-file: /var/cache/ntfy/cache.db
+cache-duration: 12h
+attachment-cache-dir: /var/cache/ntfy/attachments
+attachment-total-size: 100m
+attachment-expiry-duration: 3h
+visitor-request-limit-burst: 60
+visitor-request-limit-replenish: 10s
+# Pas d'auth sur ntfy : le topic UUID est le seul facteur d'accès.
+# Pour une sécurité accrue, activer auth ici et passer les credentials dans le backend.

@@ -6,13 +6,13 @@ import os
 import time
 from typing import Any
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
-from api.auth import router as auth_router
+from api.auth import router as auth_router, require_auth
 from api.alerts import router as alerts_router
 from api.assets import router as assets_router
 from api.dashboard import router as dashboard_router
@@ -22,6 +22,7 @@ from api.incidents import router as incidents_router
 from api.soc import router as soc_router
 from api.store import router as store_router
 from api.ai import router as ai_router
+from api.notifications import router as notifications_router
 from specula_logging.logger import get_logger
 from storage.database import init_db
 
@@ -131,17 +132,19 @@ try:
 except ImportError:
     logger.warning("prometheus-fastapi-instrumentator non disponible, /metrics désactivé")
 
-# Routers
+# Routers — auth/health publics, tout le reste protégé
+_protected = {"dependencies": [Depends(require_auth)]}
 app.include_router(auth_router)
-app.include_router(assets_router)
-app.include_router(events_router)
-app.include_router(alerts_router)
-app.include_router(detections_router)
-app.include_router(incidents_router)
-app.include_router(soc_router)
-app.include_router(dashboard_router)
-app.include_router(store_router)
-app.include_router(ai_router)
+app.include_router(assets_router,     **_protected)
+app.include_router(events_router,     **_protected)
+app.include_router(alerts_router,     **_protected)
+app.include_router(detections_router, **_protected)
+app.include_router(incidents_router,  **_protected)
+app.include_router(soc_router,        **_protected)
+app.include_router(dashboard_router,  **_protected)
+app.include_router(store_router,      **_protected)
+app.include_router(ai_router,            **_protected)
+app.include_router(notifications_router, **_protected)
 
 
 @app.on_event("startup")
@@ -155,6 +158,7 @@ def on_startup() -> None:
     import threading
     threading.Thread(target=_warm_cache, daemon=True).start()
     threading.Thread(target=_auto_analyse_new_incidents, daemon=True).start()
+    threading.Thread(target=_watch_critical_incidents, daemon=True).start()
 
 
 def _warm_cache() -> None:
@@ -188,6 +192,43 @@ def _warm_cache() -> None:
                 logger.info("Cache préchauffé : %s", name)
             except Exception as e:
                 logger.warning("Préchauffage '%s' ignoré : %s", name, e)
+
+
+def _watch_critical_incidents() -> None:
+    """Surveille les nouveaux incidents high/critical et envoie une notification ntfy."""
+    import time
+    from services.notifications import notify_incident, is_configured
+    if not is_configured():
+        logger.info("ntfy non configuré (NTFY_TOPIC vide) — surveillance notifications désactivée.")
+        return
+
+    from api.dependencies import unified_incidents_service
+    time.sleep(60)  # Laisse le cache se préchauffer
+
+    known_ids: set[str] = set()
+    first_run = True
+
+    while True:
+        try:
+            incidents = unified_incidents_service.list_incidents(limit=200)
+            current_ids = {i.get("incident_id") or i.get("id") or "" for i in incidents}
+
+            if not first_run:
+                new_ids = current_ids - known_ids
+                for inc in incidents:
+                    iid = inc.get("incident_id") or inc.get("id") or ""
+                    if iid not in new_ids:
+                        continue
+                    sev = str(inc.get("severity") or inc.get("priority") or "").lower()
+                    if sev in ("critical", "high"):
+                        notify_incident(inc)
+
+            known_ids = current_ids
+            first_run = False
+        except Exception as e:
+            logger.debug("_watch_critical_incidents: %s", e)
+
+        time.sleep(120)  # Vérifie toutes les 2 minutes (aligné sur le TTL cache)
 
 
 def _auto_analyse_new_incidents() -> None:

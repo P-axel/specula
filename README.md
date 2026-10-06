@@ -288,6 +288,26 @@ make uninstall-service
 
 ---
 
+## Notifications sur smartphone
+
+Specula envoie une notification push dès qu'un incident `critical` ou `high` apparaît. Tout reste sur votre réseau — aucune donnée ne sort.
+
+1. Installer l'app **ntfy** (Android / iOS — gratuite, open source)
+2. Lancer Specula (`make up`) — le topic unique est généré automatiquement dans `.env`
+3. Aller sur la page **Notifications** dans la console → scanner le QR code
+4. Configurer `NTFY_PUBLIC_URL` dans `.env` avec l'IP LAN de la machine Specula si vous voulez recevoir des notifications hors du réseau Wi-Fi local
+
+Pour activer HTTPS (déploiement réseau) :
+
+```bash
+SURICATA_INTERFACE=eth0 docker compose \
+  -f deploy/docker/core/docker-compose.yml \
+  --env-file .env --profile wazuh --profile ssl \
+  up -d
+```
+
+---
+
 ## Dépannage
 
 **Interface réseau non détectée**
@@ -327,6 +347,9 @@ make logs
 | Analyse IA locale (Ollama, sans cloud) | ✅ Fonctionnel |
 | Cache TTL backend — dashboard <200ms | ✅ Fonctionnel |
 | Démarrage automatique au boot (systemd) | ✅ Fonctionnel |
+| Notifications push smartphone (ntfy auto-hébergé) | ✅ Fonctionnel |
+| HTTPS / reverse proxy nginx (--profile ssl) | ✅ Fonctionnel |
+| Auth JWT sur toutes les routes API | ✅ Fonctionnel |
 | Agent Windows (script PowerShell) | ✅ Fonctionnel |
 | Limites ressources Docker (host protégé) | ✅ Fonctionnel |
 | Tests automatisés | ⚠️ Partiel |
