@@ -149,7 +149,7 @@ Analyse de menace sans aucun appel externe — tout tourne sur votre machine :
 
 - **Déclenchement** : bouton "Analyser" dans le panneau triage ou la page investigation
 - **Exécution** : arrière-plan (~40s), résultat automatique dès disponible
-- **Modèle** : `qwen2.5:1.5b` via Ollama, CPU uniquement, ~1 Go RAM
+- **Modèle** : `llama3.1:8b` via Ollama (configurable via `OLLAMA_MODEL` dans `.env`), CPU uniquement
 
 Résultat structuré :
 
@@ -206,13 +206,19 @@ make versions-update # Met à jour vers les dernières versions stables
 # Maintenance
 make wazuh-reset     # Réinitialise les volumes Wazuh (en cas de problème)
 make reset           # Reset complet (tous les volumes)
+
+# Démarrage automatique au boot (systemd)
+make install-service   # Installe Specula comme service systemd (démarrage auto)
+make uninstall-service # Supprime le service systemd
 ```
 
 ---
 
 ## Installer un agent Wazuh sur une autre machine
 
-Sur la machine distante (Debian/Ubuntu) — remplacer `<IP_SPECULA>` :
+### Linux (Debian/Ubuntu)
+
+Sur la machine distante — remplacer `<IP_SPECULA>` :
 
 ```bash
 curl -sS https://packages.wazuh.com/key/GPG-KEY-WAZUH \
@@ -232,6 +238,39 @@ sudo systemctl enable --now wazuh-agent
 ```
 
 > Le port `1514` doit être accessible depuis la machine distante.
+
+### Windows
+
+Depuis une session PowerShell (administrateur) sur la machine distante — remplacer `<IP_SPECULA>` :
+
+```powershell
+Invoke-Expression (
+  (New-Object Net.WebClient).DownloadString(
+    'https://raw.githubusercontent.com/P-axel/specula/main/scripts/install-agent-windows.ps1'
+  )
+) -WazuhServerIP "<IP_SPECULA>"
+```
+
+Le script installe l'agent Wazuh, configure la connexion au manager et démarre le service automatiquement.
+
+---
+
+## Démarrage automatique au boot
+
+Specula peut se lancer automatiquement après un redémarrage du système (via systemd) :
+
+```bash
+make install-service   # Installe le service (une seule fois, sudo requis)
+make up                # Premier lancement pour sauvegarder le profil actif
+```
+
+Le profil choisi (`make up`) est mémorisé. Au prochain boot, Specula restaure exactement la même configuration — sans relancer Ollama si ce n'est pas nécessaire.
+
+Pour désinstaller :
+
+```bash
+make uninstall-service
+```
 
 ---
 
@@ -287,6 +326,8 @@ make logs
 | Notes, pièces jointes, historique statuts | ✅ Fonctionnel |
 | Analyse IA locale (Ollama, sans cloud) | ✅ Fonctionnel |
 | Cache TTL backend — dashboard <200ms | ✅ Fonctionnel |
+| Démarrage automatique au boot (systemd) | ✅ Fonctionnel |
+| Agent Windows (script PowerShell) | ✅ Fonctionnel |
 | Limites ressources Docker (host protégé) | ✅ Fonctionnel |
 | Tests automatisés | ⚠️ Partiel |
 | Connecteurs supplémentaires (Elastic, Splunk…) | 🔜 Prévu |
