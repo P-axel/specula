@@ -8,6 +8,21 @@ NTFY_TOPIC       = os.getenv("NTFY_TOPIC", "")
 NTFY_PUBLIC_URL  = os.getenv("NTFY_PUBLIC_URL", "")  # URL accessible depuis le LAN (pour le QR)
 
 
+@router.post("/test")
+def send_test() -> dict:
+    """Envoie une notification de test ntfy."""
+    from services.notifications import send, is_configured
+    if not is_configured():
+        return {"sent": False, "reason": "NTFY_TOPIC non configuré"}
+    ok = send(
+        title="[Specula] Notification de test",
+        message="La connexion ntfy fonctionne correctement.",
+        severity="high",
+        tags=["shield", "white_check_mark"],
+    )
+    return {"sent": ok}
+
+
 @router.get("/config")
 def get_config() -> dict:
     """Retourne la configuration ntfy pour le QR code de souscription."""

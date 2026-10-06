@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
-import { getNotificationsConfig } from "../../../api/notifications.api.js";
+import { getNotificationsConfig, sendTestNotification } from "../../../api/notifications.api.js";
 import PageHero from "../../../shared/ui/PageHero";
 import PageSection from "../../../shared/ui/PageSection";
 
 export default function NotificationsPage() {
-  const [config, setConfig] = useState(null);
-  const [error, setError]   = useState("");
+  const [config, setConfig]   = useState(null);
+  const [error, setError]     = useState("");
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState("");
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -62,6 +64,30 @@ NTFY_PUBLIC_URL=http://<IP_SPECULA>:2586`}
               <p style={{ marginTop: "8px", fontSize: "0.78rem", opacity: 0.6 }}>
                 Topic : <code>{config.topic}</code>
               </p>
+              <button
+                onClick={async () => {
+                  setTesting(true); setTestResult("");
+                  try {
+                    const r = await sendTestNotification();
+                    setTestResult(r.sent ? "Notification envoyée !" : `Échec : ${r.reason}`);
+                  } catch { setTestResult("Erreur d'envoi."); }
+                  finally { setTesting(false); }
+                }}
+                disabled={testing}
+                style={{
+                  marginTop: "12px", padding: "8px 18px", borderRadius: "8px",
+                  background: testing ? "#183f58" : "#2160ff", color: "#fff",
+                  border: "none", cursor: testing ? "not-allowed" : "pointer",
+                  fontWeight: 600, fontSize: "0.85rem",
+                }}
+              >
+                {testing ? "Envoi…" : "Envoyer une notification test"}
+              </button>
+              {testResult && (
+                <p style={{ marginTop: "8px", fontSize: "0.82rem", color: testResult.includes("!") ? "#89e6cb" : "#ff6f6f" }}>
+                  {testResult}
+                </p>
+              )}
             </div>
 
             <div style={{ flex: 1, minWidth: "260px" }}>
