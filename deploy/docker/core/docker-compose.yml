@@ -49,7 +49,6 @@ services:
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    user: "1000:1000"
     networks:
       - specula-backend-net
     healthcheck:
