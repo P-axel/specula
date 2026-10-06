@@ -9,13 +9,18 @@ import subprocess
 import sys
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from api.auth import require_auth
 from storage import ai_analysis_repository
 from storage.incident_store_repository import get_incident_by_id
 from storage.database import get_connection
 
-router = APIRouter(prefix="/api/v1/incidents", tags=["ai"])
+router = APIRouter(
+    prefix="/api/v1/incidents",
+    tags=["ai"],
+    dependencies=[Depends(require_auth)],
+)
 logger = logging.getLogger(__name__)
 
 _running: set[str] = set()

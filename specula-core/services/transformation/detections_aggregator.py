@@ -263,10 +263,14 @@ class DetectionsAggregator:
         ):
             normalized = dict(item)
 
+            # Résolution de la source — fallback sur les champs imbriqués Wazuh
             source_engine = str(
                 normalized.get("source_engine")
                 or normalized.get("engine")
                 or normalized.get("source")
+                or (normalized.get("event") or {}).get("provider")
+                or (normalized.get("detection") or {}).get("engine")
+                or (normalized.get("source_context") or {}).get("source")
                 or "unknown"
             ).strip().lower()
 

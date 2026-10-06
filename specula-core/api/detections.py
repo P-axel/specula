@@ -25,7 +25,15 @@ def list_detections(
             if not det.get("message"):
                 det["message"] = det.get("title") or det.get("name") or "No description"
             # Normalise engine/source en string (peut être None ou dict)
-            engine = det.get("engine") or det.get("source_engine") or det.get("source")
+            # Fallback sur les champs imbriqués Wazuh si le top-level est vide
+            engine = (
+                det.get("engine")
+                or det.get("source_engine")
+                or det.get("source")
+                or (det.get("event") or {}).get("provider")
+                or (det.get("detection") or {}).get("engine")
+                or (det.get("source_context") or {}).get("source")
+            )
             if not isinstance(engine, str):
                 engine = None
             det["engine"] = engine

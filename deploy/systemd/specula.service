@@ -1,0 +1,27 @@
+# Template — les placeholders {{SPECULA_DIR}} et {{SPECULA_USER}} sont
+# remplacés automatiquement par `make install-service`.
+[Unit]
+Description=Specula Security Platform
+Documentation=https://github.com/specula-soc/specula
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User={{SPECULA_USER}}
+WorkingDirectory={{SPECULA_DIR}}
+ExecStart={{SPECULA_DIR}}/scripts/specula-restart.sh
+ExecStop=docker compose \
+    -f {{SPECULA_DIR}}/deploy/docker/core/docker-compose.yml \
+    --env-file {{SPECULA_DIR}}/.env \
+    --profile wazuh --profile ai \
+    down --remove-orphans
+TimeoutStartSec=120
+TimeoutStopSec=60
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

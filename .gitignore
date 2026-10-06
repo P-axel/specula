@@ -3,6 +3,7 @@
 #################################
 .env
 .env.*
+.specula-state
 
 # autoriser les fichiers d'exemple
 !.env.example

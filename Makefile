@@ -1,7 +1,7 @@
 COMPOSE  = docker compose -f deploy/docker/core/docker-compose.yml
 ENV_FILE = .env
 
-.PHONY: up down reset rebuild logs logs-core logs-suricata logs-wazuh ps open check wazuh-certs agent-install agent-status versions-check versions-update help
+.PHONY: up down reset rebuild logs logs-core logs-suricata logs-wazuh ps open check wazuh-certs agent-install agent-status versions-check versions-update install-service uninstall-service help
 
 # ─── Aide ──────────────────────────────────────────────────────
 help:
@@ -30,6 +30,10 @@ help:
 	@echo "  Mises à jour"
 	@echo "    make versions-check  Affiche les versions en cours vs. latest"
 	@echo "    make versions-update Applique les dernières versions stables dans .env"
+	@echo ""
+	@echo "  Démarrage automatique"
+	@echo "    make install-service   Active le démarrage automatique au boot"
+	@echo "    make uninstall-service Désactive le démarrage automatique"
 	@echo ""
 	@echo "  Accès"
 	@echo "    Console   : http://localhost:5173"
@@ -168,10 +172,13 @@ up: .env
 	$(call _detect_iface); \
 	mkdir -p runtime/logs/suricata; \
 	if [ "$$CHOICE" = "2" ]; then \
+		printf 'SPECULA_PROFILE=wazuh\nSURICATA_INTERFACE=%s\n' "$$SURICATA_INTERFACE" > .specula-state; \
 		$(MAKE) --no-print-directory _start-wazuh SURICATA_INTERFACE=$$SURICATA_INTERFACE; \
 	elif [ "$$CHOICE" = "3" ]; then \
+		printf 'SPECULA_PROFILE=ai\nSURICATA_INTERFACE=%s\n' "$$SURICATA_INTERFACE" > .specula-state; \
 		$(MAKE) --no-print-directory _start-ai SURICATA_INTERFACE=$$SURICATA_INTERFACE; \
 	else \
+		printf 'SPECULA_PROFILE=base\nSURICATA_INTERFACE=%s\n' "$$SURICATA_INTERFACE" > .specula-state; \
 		$(MAKE) --no-print-directory _start-base SURICATA_INTERFACE=$$SURICATA_INTERFACE; \
 	fi
 
@@ -219,10 +226,18 @@ _start-wazuh: wazuh-certs
 _start-ai: _start-wazuh
 	@set -a; . ./$(ENV_FILE); set +a; \
 	sed -i 's/SPECULA_ENABLE_AI=false/SPECULA_ENABLE_AI=true/' $(ENV_FILE) 2>/dev/null || true; \
-	SURICATA_INTERFACE=${SURICATA_INTERFACE} $(COMPOSE) --env-file $(ENV_FILE) --profile wazuh --profile ai up -d --remove-orphans
-	@echo "[specula] Téléchargement du modèle Ollama (première fois : ~5GB)..."
-	@set -a; . ./$(ENV_FILE); set +a; \
-	docker exec specula-ollama ollama pull $${OLLAMA_MODEL:-llama3.1:8b} 2>&1 | tail -3 || true
+	if ss -tlnp 2>/dev/null | grep -qE ':11434\b'; then \
+		echo "[specula] Ollama déjà actif — réutilisation de la session existante."; \
+		sed -i 's|^OLLAMA_BASE_URL=.*|OLLAMA_BASE_URL=http://host.docker.internal:11434|' $(ENV_FILE); \
+		SURICATA_INTERFACE=${SURICATA_INTERFACE} $(COMPOSE) --env-file $(ENV_FILE) --profile wazuh up -d --remove-orphans; \
+	else \
+		echo "[specula] Ollama non détecté — démarrage du conteneur..."; \
+		sed -i 's|^OLLAMA_BASE_URL=.*|OLLAMA_BASE_URL=http://specula-ollama:11434|' $(ENV_FILE); \
+		SURICATA_INTERFACE=${SURICATA_INTERFACE} $(COMPOSE) --env-file $(ENV_FILE) --profile wazuh --profile ai up -d --remove-orphans; \
+		echo "[specula] Téléchargement du modèle Ollama (première fois : ~5GB)..."; \
+		set -a; . ./$(ENV_FILE); set +a; \
+		docker exec specula-ollama ollama pull $${OLLAMA_MODEL:-llama3.1:8b} 2>&1 | tail -3 || true; \
+	fi
 	@echo ""
 	@echo "  ════════════════════════════════════"
 	@echo "  Console       : http://localhost:5173"
@@ -310,7 +325,9 @@ rebuild: .env
 # ─── Arrêt ─────────────────────────────────────────────────────
 down:
 	@echo "[specula] Arrêt de la stack..."
-	@$(COMPOSE) --env-file $(ENV_FILE) --profile wazuh down --remove-orphans
+	@$(COMPOSE) --env-file $(ENV_FILE) --profile wazuh --profile ai down --remove-orphans
+	@rm -f .specula-state
+	@sed -i 's|^OLLAMA_BASE_URL=.*|OLLAMA_BASE_URL=http://specula-ollama:11434|' $(ENV_FILE) 2>/dev/null || true
 	@echo "[specula] Stack arrêtée."
 
 # ─── Reset complet ─────────────────────────────────────────────
@@ -511,6 +528,27 @@ agent-specula:
 	@docker exec wazuh-manager /var/ossec/bin/agent_control -l 2>/dev/null \
 		| grep -v "^$$" | grep -v "agentless" | sed 's/^/    /'
 	@echo ""
+
+# ─── Démarrage automatique au boot (systemd) ───────────────────
+install-service:
+	@[ -f .specula-state ] || { echo "[specula] Lancez d'abord 'make up' pour enregistrer le profil."; exit 1; }
+	@chmod +x scripts/specula-restart.sh
+	@SPECULA_DIR="$$(pwd)"; SPECULA_USER="$$(id -un)"; \
+	sed -e "s|{{SPECULA_DIR}}|$$SPECULA_DIR|g" \
+	    -e "s|{{SPECULA_USER}}|$$SPECULA_USER|g" \
+	    deploy/systemd/specula.service \
+	    | sudo tee /etc/systemd/system/specula.service > /dev/null; \
+	sudo systemctl daemon-reload; \
+	sudo systemctl enable specula.service; \
+	PROFILE="$$(. .specula-state && echo $$SPECULA_PROFILE)"; \
+	echo "[specula] Démarrage automatique activé (profil : $$PROFILE)."; \
+	echo "          La stack sera restaurée à chaque boot."
+
+uninstall-service:
+	@sudo systemctl disable specula.service 2>/dev/null || true
+	@sudo rm -f /etc/systemd/system/specula.service
+	@sudo systemctl daemon-reload
+	@echo "[specula] Démarrage automatique désactivé."
 
 # ─── Certificats Wazuh ─────────────────────────────────────────
 wazuh-certs:
